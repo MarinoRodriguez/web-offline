@@ -20,15 +20,18 @@ public class TasksController : BaseApiController
     private readonly ITaskRepository _taskRepository;
     private readonly IListRepository _listRepository;
     private readonly IAbacPolicyEvaluator _abacEvaluator;
+    private readonly IAuditService _auditService;
 
     public TasksController(
         ITaskRepository taskRepository,
         IListRepository listRepository,
-        IAbacPolicyEvaluator abacEvaluator)
+        IAbacPolicyEvaluator abacEvaluator,
+        IAuditService auditService)
     {
         _taskRepository = taskRepository;
         _listRepository = listRepository;
         _abacEvaluator = abacEvaluator;
+        _auditService = auditService;
     }
 
     [HttpGet("workspace/{workspaceId}")]
@@ -104,7 +107,6 @@ public class TasksController : BaseApiController
             return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<TaskDto>.Fail("Access denied to create tasks in this workspace.", 403));
         }
 
-        // If parent task is specified, verify it exists and belongs to the same list/workspace
         if (!string.IsNullOrWhiteSpace(request.ParentTaskId))
         {
             var parentTask = await _taskRepository.GetByIdAsync(request.ParentTaskId);
@@ -135,6 +137,18 @@ public class TasksController : BaseApiController
 
         await _taskRepository.CreateAsync(task);
 
+        // Audit changelog
+        var actionLabel = string.IsNullOrWhiteSpace(task.ParentTaskId) ? "tarea" : "subtarea";
+        await _auditService.RecordChangeAsync(
+            CurrentUserId,
+            CurrentUserEmail,
+            "CREATE",
+            "Task",
+            task.Id,
+            $"{CurrentUserEmail} creó la {actionLabel} '{task.Title}'",
+            (TaskItem?)null,
+            task);
+
         var dto = MapToDto(task, new List<TaskItem>());
         return CreatedAtAction(nameof(GetById), new { id = task.Id }, ApiResponse<TaskDto>.Ok(dto, "Task created successfully", 201));
     }
@@ -156,7 +170,6 @@ public class TasksController : BaseApiController
 
         var targetStatus = request.Status?.ToUpperInvariant() ?? task.Status;
 
-        // Business Rule: If changing status to DONE, verify all subtasks are DONE!
         if (targetStatus == "DONE" && task.Status != "DONE")
         {
             var allCompleted = await _taskRepository.AreAllSubtasksCompletedAsync(id);
@@ -168,14 +181,45 @@ public class TasksController : BaseApiController
             }
         }
 
+        var oldState = new TaskItem
+        {
+            Id = task.Id,
+            ListId = task.ListId,
+            WorkspaceId = task.WorkspaceId,
+            ParentTaskId = task.ParentTaskId,
+            Title = task.Title,
+            Description = task.Description,
+            Status = task.Status,
+            Priority = task.Priority,
+            DueDate = task.DueDate,
+            Position = task.Position,
+            CreatedBy = task.CreatedBy,
+            CreatedAt = task.CreatedAt,
+            UpdatedAt = task.UpdatedAt,
+            Version = task.Version,
+            IsDeleted = task.IsDeleted
+        };
+
         task.Title = request.Title.Trim();
         task.Description = request.Description?.Trim();
         task.Status = targetStatus;
         task.Priority = request.Priority?.ToUpperInvariant() ?? task.Priority;
         task.DueDate = request.DueDate;
         task.Position = request.Position;
+        task.UpdatedAt = DateTime.UtcNow;
 
         await _taskRepository.UpdateAsync(task);
+
+        // Audit changelog
+        await _auditService.RecordChangeAsync(
+            CurrentUserId,
+            CurrentUserEmail,
+            "UPDATE",
+            "Task",
+            task.Id,
+            $"{CurrentUserEmail} modificó la tarea '{task.Title}'",
+            oldState,
+            task);
 
         var subtasks = (await _taskRepository.GetSubtasksAsync(id)).ToList();
         var dto = MapToDto(task, subtasks);
@@ -200,7 +244,6 @@ public class TasksController : BaseApiController
 
         var targetStatus = request.Status?.ToUpperInvariant() ?? "TODO";
 
-        // Business Rule: If changing status to DONE, verify all subtasks are DONE!
         if (targetStatus == "DONE" && task.Status != "DONE")
         {
             var allCompleted = await _taskRepository.AreAllSubtasksCompletedAsync(id);
@@ -212,12 +255,42 @@ public class TasksController : BaseApiController
             }
         }
 
+        var oldState = new TaskItem
+        {
+            Id = task.Id,
+            ListId = task.ListId,
+            WorkspaceId = task.WorkspaceId,
+            ParentTaskId = task.ParentTaskId,
+            Title = task.Title,
+            Description = task.Description,
+            Status = task.Status,
+            Priority = task.Priority,
+            DueDate = task.DueDate,
+            Position = task.Position,
+            CreatedBy = task.CreatedBy,
+            CreatedAt = task.CreatedAt,
+            UpdatedAt = task.UpdatedAt,
+            Version = task.Version,
+            IsDeleted = task.IsDeleted
+        };
+
         var newVersion = task.Version + 1;
         await _taskRepository.UpdateStatusAsync(id, targetStatus, newVersion);
 
         task.Status = targetStatus;
         task.Version = newVersion;
         task.UpdatedAt = DateTime.UtcNow;
+
+        // Audit changelog
+        await _auditService.RecordChangeAsync(
+            CurrentUserId,
+            CurrentUserEmail,
+            "STATUS_CHANGE",
+            "Task",
+            task.Id,
+            $"{CurrentUserEmail} cambió el estado de la tarea '{task.Title}' a '{targetStatus}'",
+            oldState,
+            task);
 
         var subtasks = (await _taskRepository.GetSubtasksAsync(id)).ToList();
         var dto = MapToDto(task, subtasks);
@@ -241,6 +314,18 @@ public class TasksController : BaseApiController
         }
 
         await _taskRepository.SoftDeleteAsync(id);
+
+        // Audit changelog
+        await _auditService.RecordChangeAsync(
+            CurrentUserId,
+            CurrentUserEmail,
+            "DELETE",
+            "Task",
+            id,
+            $"{CurrentUserEmail} eliminó la tarea '{task.Title}'",
+            task,
+            (TaskItem?)null);
+
         return Ok(ApiResponse.Ok("Task deleted successfully"));
     }
 

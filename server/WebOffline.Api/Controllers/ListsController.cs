@@ -19,13 +19,16 @@ public class ListsController : BaseApiController
 {
     private readonly IListRepository _listRepository;
     private readonly IAbacPolicyEvaluator _abacEvaluator;
+    private readonly IAuditService _auditService;
 
     public ListsController(
         IListRepository listRepository,
-        IAbacPolicyEvaluator abacEvaluator)
+        IAbacPolicyEvaluator abacEvaluator,
+        IAuditService auditService)
     {
         _listRepository = listRepository;
         _abacEvaluator = abacEvaluator;
+        _auditService = auditService;
     }
 
     [HttpGet("workspace/{workspaceId}")]
@@ -112,6 +115,17 @@ public class ListsController : BaseApiController
 
         await _listRepository.CreateAsync(list);
 
+        // Audit changelog
+        await _auditService.RecordChangeAsync(
+            CurrentUserId,
+            CurrentUserEmail,
+            "CREATE",
+            "List",
+            list.Id,
+            $"{CurrentUserEmail} creó la lista '{list.Name}' en el workspace '{list.WorkspaceId}'",
+            (TaskList?)null,
+            list);
+
         var dto = new ListDto
         {
             Id = list.Id,
@@ -142,11 +156,35 @@ public class ListsController : BaseApiController
             return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<ListDto>.Fail("Access denied.", 403));
         }
 
+        var oldState = new TaskList
+        {
+            Id = list.Id,
+            WorkspaceId = list.WorkspaceId,
+            Name = list.Name,
+            Color = list.Color,
+            Position = list.Position,
+            CreatedAt = list.CreatedAt,
+            UpdatedAt = list.UpdatedAt,
+            Version = list.Version,
+            IsDeleted = list.IsDeleted
+        };
+
         list.Name = request.Name.Trim();
         list.Color = request.Color;
         list.Position = request.Position;
 
         await _listRepository.UpdateAsync(list);
+
+        // Audit changelog
+        await _auditService.RecordChangeAsync(
+            CurrentUserId,
+            CurrentUserEmail,
+            "UPDATE",
+            "List",
+            list.Id,
+            $"{CurrentUserEmail} modificó la lista '{list.Name}'",
+            oldState,
+            list);
 
         var dto = new ListDto
         {
@@ -179,6 +217,18 @@ public class ListsController : BaseApiController
         }
 
         await _listRepository.SoftDeleteAsync(id);
+
+        // Audit changelog
+        await _auditService.RecordChangeAsync(
+            CurrentUserId,
+            CurrentUserEmail,
+            "DELETE",
+            "List",
+            id,
+            $"{CurrentUserEmail} eliminó la lista '{list.Name}'",
+            list,
+            (TaskList?)null);
+
         return Ok(ApiResponse.Ok("List deleted successfully"));
     }
 }

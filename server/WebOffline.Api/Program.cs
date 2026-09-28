@@ -19,26 +19,35 @@ using WebOffline.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Connection string and DB Factory
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
+// 1. Connection strings and DB Factories (Separate Databases)
+var defaultConn = builder.Configuration.GetConnectionString("DefaultConnection") 
     ?? "Data Source=offline_task_manager.db;Cache=Shared";
+var auditConn = builder.Configuration.GetConnectionString("AuditConnection") 
+    ?? "Data Source=audit_logs.db;Cache=Shared";
 
-builder.Services.AddSingleton<ISqliteDbConnectionFactory>(new SqliteDbConnectionFactory(connectionString));
+builder.Services.AddSingleton<ISqliteDbConnectionFactory>(new SqliteDbConnectionFactory(defaultConn));
+builder.Services.AddSingleton<IAuditDbConnectionFactory>(new AuditDbConnectionFactory(auditConn));
+
 builder.Services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();
 builder.Services.AddScoped<DbInitializer>();
+builder.Services.AddScoped<AuditDbInitializer>();
 
-// 2. Repositories
+// 2. Main Repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserSessionRepository, UserSessionRepository>();
 builder.Services.AddScoped<IWorkspaceRepository, WorkspaceRepository>();
 builder.Services.AddScoped<IListRepository, ListRepository>();
 builder.Services.AddScoped<ITaskRepository, TaskRepository>();
 
-// 3. Security, Token & ABAC Evaluator
+// 3. Audit Repositories & Services
+builder.Services.AddScoped<IAuditRepository, AuditRepository>();
+builder.Services.AddScoped<IAuditService, AuditService>();
+
+// 4. Security, Token & ABAC Evaluator
 builder.Services.AddScoped<ITokenService, JwtTokenService>();
 builder.Services.AddScoped<IAbacPolicyEvaluator, AbacPolicyEvaluator>();
 
-// 4. JWT Authentication
+// 5. JWT Authentication
 var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "OfflineFirstTaskManagerSuperSecureKeyForJwtTokens2026!";
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "WebOfflineApi";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "WebOfflineClient";
@@ -94,7 +103,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("RequireAdmin", policy => policy.RequireRole("admin"));
 });
 
-// 5. CORS
+// 6. CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("DevCors", policy =>
@@ -106,7 +115,7 @@ builder.Services.AddCors(options =>
     });
 });
 
-// 6. Controllers & JSON Options
+// 7. Controllers & JSON Options
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -114,7 +123,7 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.WriteIndented = true;
     });
 
-// 7. Swagger / OpenAPI with Bearer support
+// 8. Swagger / OpenAPI with Bearer support
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -122,7 +131,7 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "Offline-First Task Management API",
         Version = "v1",
-        Description = "API for Task Management with Offline Sync, Token Revocation, ABAC and SQLite/Dapper."
+        Description = "API for Task Management with Offline Sync, Token Revocation, ABAC, Separate Audit DB & Tamper-Proof Changelog."
     });
 
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -152,11 +161,14 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Run DB Initialization & seed default admin
+// Run DB Initialization & seed default admin for both primary and audit databases
 using (var scope = app.Services.CreateScope())
 {
     var dbInitializer = scope.ServiceProvider.GetRequiredService<DbInitializer>();
     await dbInitializer.InitializeAsync();
+
+    var auditDbInitializer = scope.ServiceProvider.GetRequiredService<AuditDbInitializer>();
+    await auditDbInitializer.InitializeAsync();
 }
 
 // HTTP Pipeline
@@ -172,6 +184,7 @@ app.UseCors("DevCors");
 
 app.UseAuthentication();
 app.UseMiddleware<SessionValidationMiddleware>();
+app.UseMiddleware<AuditLoggingMiddleware>(); // Logs requests/responses after authentication populates claims
 app.UseAuthorization();
 
 app.MapControllers();

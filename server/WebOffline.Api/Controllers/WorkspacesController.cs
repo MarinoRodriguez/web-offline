@@ -19,15 +19,18 @@ public class WorkspacesController : BaseApiController
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly IUserRepository _userRepository;
     private readonly IAbacPolicyEvaluator _abacEvaluator;
+    private readonly IAuditService _auditService;
 
     public WorkspacesController(
         IWorkspaceRepository workspaceRepository,
         IUserRepository userRepository,
-        IAbacPolicyEvaluator abacEvaluator)
+        IAbacPolicyEvaluator abacEvaluator,
+        IAuditService auditService)
     {
         _workspaceRepository = workspaceRepository;
         _userRepository = userRepository;
         _abacEvaluator = abacEvaluator;
+        _auditService = auditService;
     }
 
     [HttpGet]
@@ -91,6 +94,17 @@ public class WorkspacesController : BaseApiController
 
         await _workspaceRepository.CreateAsync(workspace);
 
+        // Audit changelog
+        await _auditService.RecordChangeAsync(
+            CurrentUserId,
+            CurrentUserEmail,
+            "CREATE",
+            "Workspace",
+            workspace.Id,
+            $"{CurrentUserEmail} creó el workspace '{workspace.Name}'",
+            (Workspace?)null,
+            workspace);
+
         var dto = new WorkspaceDto
         {
             Id = workspace.Id,
@@ -121,10 +135,33 @@ public class WorkspacesController : BaseApiController
             return NotFound(ApiResponse<WorkspaceDto>.Fail("Workspace not found.", 404));
         }
 
+        var oldState = new Workspace
+        {
+            Id = ws.Id,
+            Name = ws.Name,
+            Description = ws.Description,
+            OwnerId = ws.OwnerId,
+            CreatedAt = ws.CreatedAt,
+            UpdatedAt = ws.UpdatedAt,
+            Version = ws.Version,
+            IsDeleted = ws.IsDeleted
+        };
+
         ws.Name = request.Name.Trim();
         ws.Description = request.Description?.Trim();
 
         await _workspaceRepository.UpdateAsync(ws);
+
+        // Audit changelog
+        await _auditService.RecordChangeAsync(
+            CurrentUserId,
+            CurrentUserEmail,
+            "UPDATE",
+            "Workspace",
+            ws.Id,
+            $"{CurrentUserEmail} modificó el workspace '{ws.Name}'",
+            oldState,
+            ws);
 
         var role = await _workspaceRepository.GetUserRoleInWorkspaceAsync(id, CurrentUserId) ?? "Editor";
         var dto = new WorkspaceDto
@@ -151,7 +188,23 @@ public class WorkspacesController : BaseApiController
             return StatusCode(StatusCodes.Status403Forbidden, ApiResponse.Fail("Access denied: Only workspace owner can delete it.", 403));
         }
 
-        await _workspaceRepository.SoftDeleteAsync(id);
+        var ws = await _workspaceRepository.GetByIdAsync(id);
+        if (ws != null)
+        {
+            await _workspaceRepository.SoftDeleteAsync(id);
+
+            // Audit changelog
+            await _auditService.RecordChangeAsync(
+                CurrentUserId,
+                CurrentUserEmail,
+                "DELETE",
+                "Workspace",
+                id,
+                $"{CurrentUserEmail} eliminó el workspace '{ws.Name}'",
+                ws,
+                (Workspace?)null);
+        }
+
         return Ok(ApiResponse.Ok("Workspace deleted successfully"));
     }
 
@@ -197,6 +250,17 @@ public class WorkspacesController : BaseApiController
         };
 
         await _workspaceRepository.AddMemberAsync(member);
+
+        await _auditService.RecordChangeAsync(
+            CurrentUserId,
+            CurrentUserEmail,
+            "ADD_MEMBER",
+            "WorkspaceMember",
+            $"{id}_{targetUser.Id}",
+            $"{CurrentUserEmail} agregó al miembro '{targetUser.Email}' con rol '{request.Role}' al workspace",
+            (WorkspaceMember?)null,
+            member);
+
         return Ok(ApiResponse.Ok("Member added or updated successfully"));
     }
 
@@ -210,6 +274,17 @@ public class WorkspacesController : BaseApiController
         }
 
         await _workspaceRepository.RemoveMemberAsync(id, memberUserId);
+
+        await _auditService.RecordChangeAsync(
+            CurrentUserId,
+            CurrentUserEmail,
+            "REMOVE_MEMBER",
+            "WorkspaceMember",
+            $"{id}_{memberUserId}",
+            $"{CurrentUserEmail} eliminó al miembro '{memberUserId}' del workspace",
+            new { WorkspaceId = id, UserId = memberUserId },
+            (object?)null);
+
         return Ok(ApiResponse.Ok("Member removed successfully"));
     }
 }
