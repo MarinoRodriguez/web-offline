@@ -9,8 +9,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using WebOffline.Api.Middleware;
-using WebOffline.Api.Security.Abac;
-using WebOffline.Api.Services;
 using WebOffline.Core.Common;
 using WebOffline.Core.Interfaces;
 using WebOffline.Infrastructure.Data;
@@ -46,6 +44,12 @@ builder.Services.AddScoped<IAuditService, AuditService>();
 // 4. Security, Token & ABAC Evaluator
 builder.Services.AddScoped<ITokenService, JwtTokenService>();
 builder.Services.AddScoped<IAbacPolicyEvaluator, AbacPolicyEvaluator>();
+
+// 4.5 Application Services (Business Logic)
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
+builder.Services.AddScoped<IListService, ListService>();
+builder.Services.AddScoped<ITaskService, TaskService>();
 
 // 5. JWT Authentication
 var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "OfflineFirstTaskManagerSuperSecureKeyForJwtTokens2026!";

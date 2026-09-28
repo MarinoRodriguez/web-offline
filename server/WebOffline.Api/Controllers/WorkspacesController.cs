@@ -1,13 +1,9 @@
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using WebOffline.Api.Security.Abac;
 using WebOffline.Core.Common;
 using WebOffline.Core.DTOs;
-using WebOffline.Core.Entities;
 using WebOffline.Core.Interfaces;
 
 namespace WebOffline.Api.Controllers;
@@ -16,287 +12,66 @@ namespace WebOffline.Api.Controllers;
 [Route("api/[controller]")]
 public class WorkspacesController : BaseApiController
 {
-    private readonly IWorkspaceRepository _workspaceRepository;
-    private readonly IUserRepository _userRepository;
-    private readonly IAbacPolicyEvaluator _abacEvaluator;
-    private readonly IAuditService _auditService;
+    private readonly IWorkspaceService _workspaceService;
 
-    public WorkspacesController(
-        IWorkspaceRepository workspaceRepository,
-        IUserRepository userRepository,
-        IAbacPolicyEvaluator abacEvaluator,
-        IAuditService auditService)
+    public WorkspacesController(IWorkspaceService workspaceService)
     {
-        _workspaceRepository = workspaceRepository;
-        _userRepository = userRepository;
-        _abacEvaluator = abacEvaluator;
-        _auditService = auditService;
+        _workspaceService = workspaceService;
     }
 
     [HttpGet]
     public async Task<ActionResult<ApiResponse<IEnumerable<WorkspaceDto>>>> GetMyWorkspaces()
     {
-        var workspaces = await _workspaceRepository.GetUserWorkspacesAsync(CurrentUserId);
-        return Ok(ApiResponse<IEnumerable<WorkspaceDto>>.Ok(workspaces));
+        var result = await _workspaceService.GetUserWorkspacesAsync(CurrentUserId);
+        return StatusCode(result.StatusCode, result);
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<WorkspaceDto>>> GetById(string id)
     {
-        var canRead = await _abacEvaluator.CanAccessWorkspaceAsync(CurrentUserId, id, ResourceAction.Read, IsSystemAdmin);
-        if (!canRead)
-        {
-            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<WorkspaceDto>.Fail("Access denied to this workspace.", 403));
-        }
-
-        var ws = await _workspaceRepository.GetByIdAsync(id);
-        if (ws == null)
-        {
-            return NotFound(ApiResponse<WorkspaceDto>.Fail("Workspace not found.", 404));
-        }
-
-        var role = await _workspaceRepository.GetUserRoleInWorkspaceAsync(id, CurrentUserId) ?? (ws.OwnerId == CurrentUserId ? "Owner" : "Viewer");
-
-        var dto = new WorkspaceDto
-        {
-            Id = ws.Id,
-            Name = ws.Name,
-            Description = ws.Description,
-            OwnerId = ws.OwnerId,
-            RoleInWorkspace = role,
-            CreatedBy = ws.CreatedBy,
-            CreatedAt = ws.CreatedAt,
-            UpdatedBy = ws.UpdatedBy,
-            UpdatedAt = ws.UpdatedAt,
-            Version = ws.Version
-        };
-
-        return Ok(ApiResponse<WorkspaceDto>.Ok(dto));
+        var result = await _workspaceService.GetWorkspaceByIdAsync(id, CurrentUserId, IsSystemAdmin);
+        return StatusCode(result.StatusCode, result);
     }
 
     [HttpPost]
     public async Task<ActionResult<ApiResponse<WorkspaceDto>>> Create([FromBody] CreateWorkspaceRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
-        {
-            return BadRequest(ApiResponse<WorkspaceDto>.Fail("Workspace name is required."));
-        }
-
-        var workspace = new Workspace
-        {
-            Id = Guid.NewGuid().ToString(),
-            Name = request.Name.Trim(),
-            Description = request.Description?.Trim(),
-            OwnerId = CurrentUserId,
-            CreatedBy = CurrentUserId,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedBy = CurrentUserId,
-            UpdatedAt = DateTime.UtcNow,
-            Version = 1,
-            IsDeleted = false
-        };
-
-        await _workspaceRepository.CreateAsync(workspace);
-
-        // Audit changelog
-        await _auditService.RecordChangeAsync(
-            CurrentUserId,
-            CurrentUserEmail,
-            "CREATE",
-            "Workspace",
-            workspace.Id,
-            $"{CurrentUserEmail} creó el workspace '{workspace.Name}'",
-            (Workspace?)null,
-            workspace);
-
-        var dto = new WorkspaceDto
-        {
-            Id = workspace.Id,
-            Name = workspace.Name,
-            Description = workspace.Description,
-            OwnerId = workspace.OwnerId,
-            RoleInWorkspace = "Owner",
-            CreatedBy = workspace.CreatedBy,
-            CreatedAt = workspace.CreatedAt,
-            UpdatedBy = workspace.UpdatedBy,
-            UpdatedAt = workspace.UpdatedAt,
-            Version = workspace.Version
-        };
-
-        return CreatedAtAction(nameof(GetById), new { id = workspace.Id }, ApiResponse<WorkspaceDto>.Ok(dto, "Workspace created successfully", 201));
+        var result = await _workspaceService.CreateWorkspaceAsync(request, CurrentUserId, CurrentUserEmail);
+        return StatusCode(result.StatusCode, result);
     }
 
     [HttpPut("{id}")]
     public async Task<ActionResult<ApiResponse<WorkspaceDto>>> Update(string id, [FromBody] UpdateWorkspaceRequest request)
     {
-        var canWrite = await _abacEvaluator.CanAccessWorkspaceAsync(CurrentUserId, id, ResourceAction.Write, IsSystemAdmin);
-        if (!canWrite)
-        {
-            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<WorkspaceDto>.Fail("Access denied to modify this workspace.", 403));
-        }
-
-        var ws = await _workspaceRepository.GetByIdAsync(id);
-        if (ws == null)
-        {
-            return NotFound(ApiResponse<WorkspaceDto>.Fail("Workspace not found.", 404));
-        }
-
-        var oldState = new Workspace
-        {
-            Id = ws.Id,
-            Name = ws.Name,
-            Description = ws.Description,
-            OwnerId = ws.OwnerId,
-            CreatedBy = ws.CreatedBy,
-            CreatedAt = ws.CreatedAt,
-            UpdatedBy = ws.UpdatedBy,
-            UpdatedAt = ws.UpdatedAt,
-            Version = ws.Version,
-            IsDeleted = ws.IsDeleted
-        };
-
-        ws.Name = request.Name.Trim();
-        ws.Description = request.Description?.Trim();
-        ws.UpdatedBy = CurrentUserId;
-        ws.UpdatedAt = DateTime.UtcNow;
-
-        await _workspaceRepository.UpdateAsync(ws);
-
-        // Audit changelog
-        await _auditService.RecordChangeAsync(
-            CurrentUserId,
-            CurrentUserEmail,
-            "UPDATE",
-            "Workspace",
-            ws.Id,
-            $"{CurrentUserEmail} modificó el workspace '{ws.Name}'",
-            oldState,
-            ws);
-
-        var role = await _workspaceRepository.GetUserRoleInWorkspaceAsync(id, CurrentUserId) ?? "Editor";
-        var dto = new WorkspaceDto
-        {
-            Id = ws.Id,
-            Name = ws.Name,
-            Description = ws.Description,
-            OwnerId = ws.OwnerId,
-            RoleInWorkspace = role,
-            CreatedBy = ws.CreatedBy,
-            CreatedAt = ws.CreatedAt,
-            UpdatedBy = ws.UpdatedBy,
-            UpdatedAt = ws.UpdatedAt,
-            Version = ws.Version + 1
-        };
-
-        return Ok(ApiResponse<WorkspaceDto>.Ok(dto, "Workspace updated successfully"));
+        var result = await _workspaceService.UpdateWorkspaceAsync(id, request, CurrentUserId, CurrentUserEmail, IsSystemAdmin);
+        return StatusCode(result.StatusCode, result);
     }
 
     [HttpDelete("{id}")]
     public async Task<ActionResult<ApiResponse>> Delete(string id)
     {
-        var canDelete = await _abacEvaluator.CanAccessWorkspaceAsync(CurrentUserId, id, ResourceAction.Delete, IsSystemAdmin);
-        if (!canDelete)
-        {
-            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse.Fail("Access denied: Only workspace owner can delete it.", 403));
-        }
-
-        var ws = await _workspaceRepository.GetByIdAsync(id);
-        if (ws != null)
-        {
-            await _workspaceRepository.SoftDeleteAsync(id, CurrentUserId);
-
-            // Audit changelog
-            await _auditService.RecordChangeAsync(
-                CurrentUserId,
-                CurrentUserEmail,
-                "DELETE",
-                "Workspace",
-                id,
-                $"{CurrentUserEmail} eliminó el workspace '{ws.Name}'",
-                ws,
-                (Workspace?)null);
-        }
-
-        return Ok(ApiResponse.Ok("Workspace deleted successfully"));
+        var result = await _workspaceService.DeleteWorkspaceAsync(id, CurrentUserId, CurrentUserEmail, IsSystemAdmin);
+        return StatusCode(result.StatusCode, result);
     }
 
     [HttpGet("{id}/members")]
     public async Task<ActionResult<ApiResponse<IEnumerable<WorkspaceMemberDto>>>> GetMembers(string id)
     {
-        var canRead = await _abacEvaluator.CanAccessWorkspaceAsync(CurrentUserId, id, ResourceAction.Read, IsSystemAdmin);
-        if (!canRead)
-        {
-            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<IEnumerable<WorkspaceMemberDto>>.Fail("Access denied.", 403));
-        }
-
-        var members = await _workspaceRepository.GetMembersAsync(id);
-        return Ok(ApiResponse<IEnumerable<WorkspaceMemberDto>>.Ok(members));
+        var result = await _workspaceService.GetMembersAsync(id, CurrentUserId, IsSystemAdmin);
+        return StatusCode(result.StatusCode, result);
     }
 
     [HttpPost("{id}/members")]
     public async Task<ActionResult<ApiResponse>> AddMember(string id, [FromBody] AddMemberRequest request)
     {
-        var canAdmin = await _abacEvaluator.CanAccessWorkspaceAsync(CurrentUserId, id, ResourceAction.Admin, IsSystemAdmin);
-        if (!canAdmin)
-        {
-            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse.Fail("Access denied: Only workspace owner can manage members.", 403));
-        }
-
-        User? targetUser = await _userRepository.GetByIdAsync(request.EmailOrUserId);
-        if (targetUser == null)
-        {
-            targetUser = await _userRepository.GetByEmailAsync(request.EmailOrUserId);
-        }
-
-        if (targetUser == null)
-        {
-            return NotFound(ApiResponse.Fail("User not found.", 404));
-        }
-
-        var member = new WorkspaceMember
-        {
-            WorkspaceId = id,
-            UserId = targetUser.Id,
-            Role = request.Role,
-            JoinedAt = DateTime.UtcNow
-        };
-
-        await _workspaceRepository.AddMemberAsync(member);
-
-        await _auditService.RecordChangeAsync(
-            CurrentUserId,
-            CurrentUserEmail,
-            "ADD_MEMBER",
-            "WorkspaceMember",
-            $"{id}_{targetUser.Id}",
-            $"{CurrentUserEmail} agregó al miembro '{targetUser.Email}' con rol '{request.Role}' al workspace",
-            (WorkspaceMember?)null,
-            member);
-
-        return Ok(ApiResponse.Ok("Member added or updated successfully"));
+        var result = await _workspaceService.AddMemberAsync(id, request, CurrentUserId, CurrentUserEmail, IsSystemAdmin);
+        return StatusCode(result.StatusCode, result);
     }
 
-    [HttpDelete("{id}/members/{memberUserId}")]
-    public async Task<ActionResult<ApiResponse>> RemoveMember(string id, string memberUserId)
+    [HttpDelete("{id}/members/{userId}")]
+    public async Task<ActionResult<ApiResponse>> RemoveMember(string id, string userId)
     {
-        var canAdmin = await _abacEvaluator.CanAccessWorkspaceAsync(CurrentUserId, id, ResourceAction.Admin, IsSystemAdmin);
-        if (!canAdmin && CurrentUserId != memberUserId) // Allow leaving workspace yourself
-        {
-            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse.Fail("Access denied.", 403));
-        }
-
-        await _workspaceRepository.RemoveMemberAsync(id, memberUserId);
-
-        await _auditService.RecordChangeAsync(
-            CurrentUserId,
-            CurrentUserEmail,
-            "REMOVE_MEMBER",
-            "WorkspaceMember",
-            $"{id}_{memberUserId}",
-            $"{CurrentUserEmail} eliminó al miembro '{memberUserId}' del workspace",
-            new { WorkspaceId = id, UserId = memberUserId },
-            (object?)null);
-
-        return Ok(ApiResponse.Ok("Member removed successfully"));
+        var result = await _workspaceService.RemoveMemberAsync(id, userId, CurrentUserId, CurrentUserEmail, IsSystemAdmin);
+        return StatusCode(result.StatusCode, result);
     }
 }

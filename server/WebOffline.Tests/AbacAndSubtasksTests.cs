@@ -1,8 +1,8 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
-using WebOffline.Api.Security.Abac;
 using WebOffline.Core.Entities;
+using WebOffline.Core.Interfaces;
 using WebOffline.Infrastructure.Data;
 using WebOffline.Infrastructure.Repositories;
 using WebOffline.Infrastructure.Services;

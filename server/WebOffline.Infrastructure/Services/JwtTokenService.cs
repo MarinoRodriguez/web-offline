@@ -7,16 +7,9 @@ using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using WebOffline.Core.Entities;
+using WebOffline.Core.Interfaces;
 
-namespace WebOffline.Api.Services;
-
-public interface ITokenService
-{
-    (string Token, DateTime ExpiresAt) GenerateAccessToken(User user, string sessionId);
-    string GenerateRefreshToken();
-    string HashToken(string token);
-    ClaimsPrincipal? GetPrincipalFromExpiredToken(string token);
-}
+namespace WebOffline.Infrastructure.Services;
 
 public class JwtTokenService : ITokenService
 {
@@ -89,7 +82,7 @@ public class JwtTokenService : ITokenService
             ValidateIssuer = false,
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(_key),
-            ValidateLifetime = false // Here we don't care about expired tokens
+            ValidateLifetime = false
         };
 
         var tokenHandler = new JwtSecurityTokenHandler();

@@ -1,22 +1,8 @@
+using System;
 using System.Threading.Tasks;
 using WebOffline.Core.Interfaces;
 
-namespace WebOffline.Api.Security.Abac;
-
-public enum ResourceAction
-{
-    Read,
-    Write,
-    Delete,
-    Admin
-}
-
-public interface IAbacPolicyEvaluator
-{
-    Task<bool> CanAccessWorkspaceAsync(string userId, string workspaceId, ResourceAction action, bool isSystemAdmin = false);
-    Task<bool> CanAccessListAsync(string userId, string listId, ResourceAction action, bool isSystemAdmin = false);
-    Task<bool> CanAccessTaskAsync(string userId, string taskId, ResourceAction action, bool isSystemAdmin = false);
-}
+namespace WebOffline.Infrastructure.Services;
 
 public class AbacPolicyEvaluator : IAbacPolicyEvaluator
 {
@@ -49,10 +35,10 @@ public class AbacPolicyEvaluator : IAbacPolicyEvaluator
         return action switch
         {
             ResourceAction.Read => true, // Viewer, Editor, Owner
-            ResourceAction.Write => role.Equals("Owner", System.StringComparison.OrdinalIgnoreCase) ||
-                                   role.Equals("Editor", System.StringComparison.OrdinalIgnoreCase),
-            ResourceAction.Delete => role.Equals("Owner", System.StringComparison.OrdinalIgnoreCase),
-            ResourceAction.Admin => role.Equals("Owner", System.StringComparison.OrdinalIgnoreCase),
+            ResourceAction.Write => role.Equals("Owner", StringComparison.OrdinalIgnoreCase) ||
+                                   role.Equals("Editor", StringComparison.OrdinalIgnoreCase),
+            ResourceAction.Delete => role.Equals("Owner", StringComparison.OrdinalIgnoreCase),
+            ResourceAction.Admin => role.Equals("Owner", StringComparison.OrdinalIgnoreCase),
             _ => false
         };
     }
@@ -74,7 +60,6 @@ public class AbacPolicyEvaluator : IAbacPolicyEvaluator
         var task = await _taskRepository.GetByIdAsync(taskId);
         if (task == null) return false;
 
-        // Task creator can always edit/delete their own task if they are at least Editor in the workspace
         return await CanAccessWorkspaceAsync(userId, task.WorkspaceId, action, isSystemAdmin);
     }
 }
