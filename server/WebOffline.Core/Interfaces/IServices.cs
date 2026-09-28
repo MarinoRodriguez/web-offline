@@ -49,3 +49,18 @@ public interface ITaskService
     Task<ApiResponse<TaskDto>> UpdateTaskStatusAsync(string taskId, UpdateTaskStatusRequest request, string currentUserId, string currentUserEmail, bool isSystemAdmin);
     Task<ApiResponse> DeleteTaskAsync(string taskId, string currentUserId, string currentUserEmail, bool isSystemAdmin);
 }
+
+public interface ISyncService
+{
+    Task<ApiResponse<SyncBatchResponse>> SyncBatchAsync(
+        SyncBatchRequest request,
+        string currentUserId,
+        string currentUserEmail,
+        bool isSystemAdmin);
+
+    Task<ApiResponse<SyncBatchResponse>> PullChangesAsync(
+        DateTime? lastSyncedAt,
+        string? workspaceId,
+        string currentUserId,
+        bool isSystemAdmin);
+}

@@ -61,3 +61,13 @@ public interface ITaskRepository
     Task<bool> AreAllSubtasksCompletedAsync(string parentTaskId);
     Task<int> CountPendingSubtasksAsync(string parentTaskId);
 }
+
+public interface ISyncRepository
+{
+    Task<int> RecordTombstoneAsync(SyncTombstone tombstone);
+    Task<IEnumerable<SyncTombstone>> GetTombstonesSinceAsync(DateTime? sinceUtc, IEnumerable<string> workspaceIds);
+    Task<IEnumerable<Workspace>> GetWorkspacesUpdatedSinceAsync(DateTime? sinceUtc, IEnumerable<string> workspaceIds);
+    Task<IEnumerable<TaskList>> GetListsUpdatedSinceAsync(DateTime? sinceUtc, IEnumerable<string> workspaceIds);
+    Task<IEnumerable<TaskItem>> GetTasksUpdatedSinceAsync(DateTime? sinceUtc, IEnumerable<string> workspaceIds);
+    Task<IEnumerable<string>> GetAccessibleWorkspaceIdsAsync(string userId, bool isSystemAdmin);
+}

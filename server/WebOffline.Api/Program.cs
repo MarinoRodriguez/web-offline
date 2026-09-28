@@ -36,6 +36,7 @@ builder.Services.AddScoped<IUserSessionRepository, UserSessionRepository>();
 builder.Services.AddScoped<IWorkspaceRepository, WorkspaceRepository>();
 builder.Services.AddScoped<IListRepository, ListRepository>();
 builder.Services.AddScoped<ITaskRepository, TaskRepository>();
+builder.Services.AddScoped<ISyncRepository, SyncRepository>();
 
 // 3. Audit Repositories & Services
 builder.Services.AddScoped<IAuditRepository, AuditRepository>();
@@ -50,6 +51,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
 builder.Services.AddScoped<IListService, ListService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
+builder.Services.AddScoped<ISyncService, SyncService>();
 
 // 5. JWT Authentication
 var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "OfflineFirstTaskManagerSuperSecureKeyForJwtTokens2026!";

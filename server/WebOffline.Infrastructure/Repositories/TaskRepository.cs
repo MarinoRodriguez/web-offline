@@ -131,7 +131,7 @@ public class TaskRepository : ITaskRepository
             DueDate = task.DueDate?.ToString("O"),
             task.Position,
             task.UpdatedBy,
-            UpdatedAt = DateTime.UtcNow.ToString("O")
+            UpdatedAt = (task.UpdatedAt > DateTime.MinValue ? task.UpdatedAt : DateTime.UtcNow).ToString("O")
         });
     }
 

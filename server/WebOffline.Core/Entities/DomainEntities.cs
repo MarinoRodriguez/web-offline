@@ -89,3 +89,13 @@ public class TaskItem
     public long Version { get; set; } = 1;
     public bool IsDeleted { get; set; } = false;
 }
+
+public class SyncTombstone
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string EntityType { get; set; } = string.Empty; // "workspace", "list", "task"
+    public string EntityId { get; set; } = string.Empty;
+    public string? WorkspaceId { get; set; }
+    public string DeletedBy { get; set; } = string.Empty;
+    public DateTime DeletedAt { get; set; } = DateTime.UtcNow;
+}

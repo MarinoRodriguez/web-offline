@@ -131,6 +131,18 @@ public class DbInitializer
             CREATE INDEX IF NOT EXISTS idx_tasks_workspace ON tasks(workspace_id);
             CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id);
             CREATE INDEX IF NOT EXISTS idx_tasks_updated ON tasks(updated_at);
+
+            CREATE TABLE IF NOT EXISTS sync_tombstones (
+                id TEXT PRIMARY KEY,
+                entity_type TEXT NOT NULL,
+                entity_id TEXT NOT NULL,
+                workspace_id TEXT,
+                deleted_by TEXT NOT NULL,
+                deleted_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_tombstones_deleted ON sync_tombstones(deleted_at);
+            CREATE INDEX IF NOT EXISTS idx_tombstones_workspace ON sync_tombstones(workspace_id);
         ";
 
         await connection.ExecuteAsync(sql);

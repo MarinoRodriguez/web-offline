@@ -82,7 +82,7 @@ public class ListRepository : IListRepository
             list.Color,
             list.Position,
             list.UpdatedBy,
-            UpdatedAt = DateTime.UtcNow.ToString("O")
+            UpdatedAt = (list.UpdatedAt > DateTime.MinValue ? list.UpdatedAt : DateTime.UtcNow).ToString("O")
         });
     }
 

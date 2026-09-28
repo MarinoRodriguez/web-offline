@@ -100,18 +100,31 @@ public class AuditService : IAuditService
         if (log == null || string.IsNullOrWhiteSpace(log.TamperHash))
             return false;
 
-        var computed = CalculateTamperHash(
-            log.Id,
-            log.Timestamp.ToString("O"),
-            log.UserId,
-            log.UserEmail,
-            log.Action,
-            log.EntityType,
-            log.EntityId,
-            log.DiffJson,
-            log.PrevHash);
+        var formatsToTry = new[]
+        {
+            log.Timestamp.Kind == DateTimeKind.Utc ? log.Timestamp.ToString("O") : log.Timestamp.ToUniversalTime().ToString("O"),
+            DateTime.SpecifyKind(log.Timestamp, DateTimeKind.Utc).ToString("O"),
+            log.Timestamp.ToString("O")
+        }.Distinct();
 
-        return string.Equals(computed, log.TamperHash, StringComparison.OrdinalIgnoreCase);
+        foreach (var ts in formatsToTry)
+        {
+            var computed = CalculateTamperHash(
+                log.Id,
+                ts,
+                log.UserId,
+                log.UserEmail,
+                log.Action,
+                log.EntityType,
+                log.EntityId,
+                log.DiffJson,
+                log.PrevHash);
+
+            if (string.Equals(computed, log.TamperHash, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 
     private static string ComputeDiffJson<T>(T? oldState, T? newState)

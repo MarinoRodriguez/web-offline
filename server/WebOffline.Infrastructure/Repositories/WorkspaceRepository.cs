@@ -100,7 +100,7 @@ public class WorkspaceRepository : IWorkspaceRepository
             workspace.Name,
             workspace.Description,
             workspace.UpdatedBy,
-            UpdatedAt = DateTime.UtcNow.ToString("O")
+            UpdatedAt = (workspace.UpdatedAt > DateTime.MinValue ? workspace.UpdatedAt : DateTime.UtcNow).ToString("O")
         });
     }
 

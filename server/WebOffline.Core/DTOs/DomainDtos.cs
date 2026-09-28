@@ -85,6 +85,7 @@ public class WorkspaceDto
     public string? UpdatedBy { get; set; }
     public DateTime UpdatedAt { get; set; }
     public long Version { get; set; }
+    public bool IsDeleted { get; set; }
 }
 
 public class AddMemberRequest
@@ -134,6 +135,7 @@ public class ListDto
     public string? UpdatedBy { get; set; }
     public DateTime UpdatedAt { get; set; }
     public long Version { get; set; }
+    public bool IsDeleted { get; set; }
 }
 
 #endregion
@@ -184,6 +186,7 @@ public class TaskDto
     public string? UpdatedBy { get; set; }
     public DateTime UpdatedAt { get; set; }
     public long Version { get; set; }
+    public bool IsDeleted { get; set; }
     
     // Subtask metrics
     public int SubtaskCount { get; set; }
