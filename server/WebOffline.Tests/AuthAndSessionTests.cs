@@ -143,4 +143,14 @@ public class AuthAndSessionTests : IDisposable
         var activeAfter = await _sessionRepository.GetActiveSessionsForUserAsync(user.Id);
         Assert.Empty(activeAfter);
     }
+
+    [Fact]
+    public async Task DbInitializer_SeedsInitialAdminUser()
+    {
+        var admin = await _userRepository.GetByEmailAsync("admin@offline.local");
+        Assert.NotNull(admin);
+        Assert.Equal("admin", admin.SystemRole);
+        Assert.True(_passwordHasher.VerifyPassword("Admin123!", admin.PasswordHash));
+        Assert.True(admin.IsActive);
+    }
 }

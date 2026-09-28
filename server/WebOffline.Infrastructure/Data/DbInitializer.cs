@@ -2,6 +2,7 @@ using System;
 using System.Data;
 using System.Threading.Tasks;
 using Dapper;
+using Microsoft.Extensions.Configuration;
 using WebOffline.Core.Entities;
 using WebOffline.Infrastructure.Services;
 
@@ -11,11 +12,16 @@ public class DbInitializer
 {
     private readonly ISqliteDbConnectionFactory _connectionFactory;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly IConfiguration? _configuration;
 
-    public DbInitializer(ISqliteDbConnectionFactory connectionFactory, IPasswordHasher passwordHasher)
+    public DbInitializer(
+        ISqliteDbConnectionFactory connectionFactory,
+        IPasswordHasher passwordHasher,
+        IConfiguration? configuration = null)
     {
         _connectionFactory = connectionFactory;
         _passwordHasher = passwordHasher;
+        _configuration = configuration;
     }
 
     public async Task InitializeAsync()
@@ -138,7 +144,10 @@ public class DbInitializer
         {
             var adminId = Guid.NewGuid().ToString();
             var now = DateTime.UtcNow.ToString("O");
-            var passwordHash = _passwordHasher.HashPassword("Admin123!");
+            var adminEmail = _configuration?["InitialAdmin:Email"] ?? "admin@offline.local";
+            var adminPassword = _configuration?["InitialAdmin:Password"] ?? "Admin123!";
+            var adminFullName = _configuration?["InitialAdmin:FullName"] ?? "System Administrator";
+            var passwordHash = _passwordHasher.HashPassword(adminPassword);
 
             await connection.ExecuteAsync(@"
                 INSERT INTO users (id, email, password_hash, full_name, system_role, created_at, updated_at, is_active)
@@ -146,9 +155,9 @@ public class DbInitializer
             ", new
             {
                 Id = adminId,
-                Email = "admin@offline.local",
+                Email = adminEmail,
                 PasswordHash = passwordHash,
-                FullName = "System Administrator",
+                FullName = adminFullName,
                 CreatedAt = now,
                 UpdatedAt = now
             });
