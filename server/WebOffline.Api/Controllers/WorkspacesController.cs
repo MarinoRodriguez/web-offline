@@ -64,7 +64,9 @@ public class WorkspacesController : BaseApiController
             Description = ws.Description,
             OwnerId = ws.OwnerId,
             RoleInWorkspace = role,
+            CreatedBy = ws.CreatedBy,
             CreatedAt = ws.CreatedAt,
+            UpdatedBy = ws.UpdatedBy,
             UpdatedAt = ws.UpdatedAt,
             Version = ws.Version
         };
@@ -86,7 +88,9 @@ public class WorkspacesController : BaseApiController
             Name = request.Name.Trim(),
             Description = request.Description?.Trim(),
             OwnerId = CurrentUserId,
+            CreatedBy = CurrentUserId,
             CreatedAt = DateTime.UtcNow,
+            UpdatedBy = CurrentUserId,
             UpdatedAt = DateTime.UtcNow,
             Version = 1,
             IsDeleted = false
@@ -112,7 +116,9 @@ public class WorkspacesController : BaseApiController
             Description = workspace.Description,
             OwnerId = workspace.OwnerId,
             RoleInWorkspace = "Owner",
+            CreatedBy = workspace.CreatedBy,
             CreatedAt = workspace.CreatedAt,
+            UpdatedBy = workspace.UpdatedBy,
             UpdatedAt = workspace.UpdatedAt,
             Version = workspace.Version
         };
@@ -141,7 +147,9 @@ public class WorkspacesController : BaseApiController
             Name = ws.Name,
             Description = ws.Description,
             OwnerId = ws.OwnerId,
+            CreatedBy = ws.CreatedBy,
             CreatedAt = ws.CreatedAt,
+            UpdatedBy = ws.UpdatedBy,
             UpdatedAt = ws.UpdatedAt,
             Version = ws.Version,
             IsDeleted = ws.IsDeleted
@@ -149,6 +157,8 @@ public class WorkspacesController : BaseApiController
 
         ws.Name = request.Name.Trim();
         ws.Description = request.Description?.Trim();
+        ws.UpdatedBy = CurrentUserId;
+        ws.UpdatedAt = DateTime.UtcNow;
 
         await _workspaceRepository.UpdateAsync(ws);
 
@@ -171,8 +181,10 @@ public class WorkspacesController : BaseApiController
             Description = ws.Description,
             OwnerId = ws.OwnerId,
             RoleInWorkspace = role,
+            CreatedBy = ws.CreatedBy,
             CreatedAt = ws.CreatedAt,
-            UpdatedAt = DateTime.UtcNow,
+            UpdatedBy = ws.UpdatedBy,
+            UpdatedAt = ws.UpdatedAt,
             Version = ws.Version + 1
         };
 
@@ -191,7 +203,7 @@ public class WorkspacesController : BaseApiController
         var ws = await _workspaceRepository.GetByIdAsync(id);
         if (ws != null)
         {
-            await _workspaceRepository.SoftDeleteAsync(id);
+            await _workspaceRepository.SoftDeleteAsync(id, CurrentUserId);
 
             // Audit changelog
             await _auditService.RecordChangeAsync(

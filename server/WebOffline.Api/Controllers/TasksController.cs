@@ -130,6 +130,7 @@ public class TasksController : BaseApiController
             Position = request.Position,
             CreatedBy = CurrentUserId,
             CreatedAt = DateTime.UtcNow,
+            UpdatedBy = CurrentUserId,
             UpdatedAt = DateTime.UtcNow,
             Version = 1,
             IsDeleted = false
@@ -195,6 +196,7 @@ public class TasksController : BaseApiController
             Position = task.Position,
             CreatedBy = task.CreatedBy,
             CreatedAt = task.CreatedAt,
+            UpdatedBy = task.UpdatedBy,
             UpdatedAt = task.UpdatedAt,
             Version = task.Version,
             IsDeleted = task.IsDeleted
@@ -206,6 +208,7 @@ public class TasksController : BaseApiController
         task.Priority = request.Priority?.ToUpperInvariant() ?? task.Priority;
         task.DueDate = request.DueDate;
         task.Position = request.Position;
+        task.UpdatedBy = CurrentUserId;
         task.UpdatedAt = DateTime.UtcNow;
 
         await _taskRepository.UpdateAsync(task);
@@ -269,16 +272,18 @@ public class TasksController : BaseApiController
             Position = task.Position,
             CreatedBy = task.CreatedBy,
             CreatedAt = task.CreatedAt,
+            UpdatedBy = task.UpdatedBy,
             UpdatedAt = task.UpdatedAt,
             Version = task.Version,
             IsDeleted = task.IsDeleted
         };
 
         var newVersion = task.Version + 1;
-        await _taskRepository.UpdateStatusAsync(id, targetStatus, newVersion);
+        await _taskRepository.UpdateStatusAsync(id, targetStatus, newVersion, CurrentUserId);
 
         task.Status = targetStatus;
         task.Version = newVersion;
+        task.UpdatedBy = CurrentUserId;
         task.UpdatedAt = DateTime.UtcNow;
 
         // Audit changelog
@@ -313,7 +318,7 @@ public class TasksController : BaseApiController
             return StatusCode(StatusCodes.Status403Forbidden, ApiResponse.Fail("Access denied.", 403));
         }
 
-        await _taskRepository.SoftDeleteAsync(id);
+        await _taskRepository.SoftDeleteAsync(id, CurrentUserId);
 
         // Audit changelog
         await _auditService.RecordChangeAsync(
@@ -361,6 +366,7 @@ public class TasksController : BaseApiController
             Position = s.Position,
             CreatedBy = s.CreatedBy,
             CreatedAt = s.CreatedAt,
+            UpdatedBy = s.UpdatedBy,
             UpdatedAt = s.UpdatedAt,
             Version = s.Version,
             SubtaskCount = 0,
@@ -382,6 +388,7 @@ public class TasksController : BaseApiController
             Position = task.Position,
             CreatedBy = task.CreatedBy,
             CreatedAt = task.CreatedAt,
+            UpdatedBy = task.UpdatedBy,
             UpdatedAt = task.UpdatedAt,
             Version = task.Version,
             SubtaskCount = subtaskDtos.Count,

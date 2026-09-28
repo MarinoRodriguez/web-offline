@@ -25,7 +25,8 @@ public class TaskRepository : ITaskRepository
                      parent_task_id as ParentTaskId, title, description, 
                      status, priority, due_date as DueDate, position, 
                      created_by as CreatedBy, created_at as CreatedAt, 
-                     updated_at as UpdatedAt, version, is_deleted as IsDeleted
+                     updated_by as UpdatedBy, updated_at as UpdatedAt, 
+                     version, is_deleted as IsDeleted
               FROM tasks 
               WHERE id = @Id AND is_deleted = 0;",
             new { Id = id });
@@ -39,7 +40,8 @@ public class TaskRepository : ITaskRepository
                      parent_task_id as ParentTaskId, title, description, 
                      status, priority, due_date as DueDate, position, 
                      created_by as CreatedBy, created_at as CreatedAt, 
-                     updated_at as UpdatedAt, version, is_deleted as IsDeleted
+                     updated_by as UpdatedBy, updated_at as UpdatedAt, 
+                     version, is_deleted as IsDeleted
               FROM tasks 
               WHERE workspace_id = @WorkspaceId AND is_deleted = 0
               ORDER BY position ASC, created_at ASC;",
@@ -54,7 +56,8 @@ public class TaskRepository : ITaskRepository
                      parent_task_id as ParentTaskId, title, description, 
                      status, priority, due_date as DueDate, position, 
                      created_by as CreatedBy, created_at as CreatedAt, 
-                     updated_at as UpdatedAt, version, is_deleted as IsDeleted
+                     updated_by as UpdatedBy, updated_at as UpdatedAt, 
+                     version, is_deleted as IsDeleted
               FROM tasks 
               WHERE list_id = @ListId AND is_deleted = 0
               ORDER BY position ASC, created_at ASC;",
@@ -69,7 +72,8 @@ public class TaskRepository : ITaskRepository
                      parent_task_id as ParentTaskId, title, description, 
                      status, priority, due_date as DueDate, position, 
                      created_by as CreatedBy, created_at as CreatedAt, 
-                     updated_at as UpdatedAt, version, is_deleted as IsDeleted
+                     updated_by as UpdatedBy, updated_at as UpdatedAt, 
+                     version, is_deleted as IsDeleted
               FROM tasks 
               WHERE parent_task_id = @ParentTaskId AND is_deleted = 0
               ORDER BY position ASC, created_at ASC;",
@@ -82,10 +86,10 @@ public class TaskRepository : ITaskRepository
         var sql = @"
             INSERT INTO tasks (id, list_id, workspace_id, parent_task_id, title, description, 
                                status, priority, due_date, position, created_by, created_at, 
-                               updated_at, version, is_deleted)
+                               updated_by, updated_at, version, is_deleted)
             VALUES (@Id, @ListId, @WorkspaceId, @ParentTaskId, @Title, @Description, 
                     @Status, @Priority, @DueDate, @Position, @CreatedBy, @CreatedAt, 
-                    @UpdatedAt, @Version, 0);";
+                    @UpdatedBy, @UpdatedAt, @Version, 0);";
 
         return await connection.ExecuteAsync(sql, new
         {
@@ -101,6 +105,7 @@ public class TaskRepository : ITaskRepository
             task.Position,
             task.CreatedBy,
             CreatedAt = task.CreatedAt.ToString("O"),
+            task.UpdatedBy,
             UpdatedAt = task.UpdatedAt.ToString("O"),
             task.Version
         });
@@ -113,7 +118,7 @@ public class TaskRepository : ITaskRepository
             UPDATE tasks
             SET title = @Title, description = @Description, status = @Status,
                 priority = @Priority, due_date = @DueDate, position = @Position,
-                updated_at = @UpdatedAt, version = version + 1
+                updated_by = @UpdatedBy, updated_at = @UpdatedAt, version = version + 1
             WHERE id = @Id AND is_deleted = 0;";
 
         return await connection.ExecuteAsync(sql, new
@@ -125,38 +130,41 @@ public class TaskRepository : ITaskRepository
             task.Priority,
             DueDate = task.DueDate?.ToString("O"),
             task.Position,
+            task.UpdatedBy,
             UpdatedAt = DateTime.UtcNow.ToString("O")
         });
     }
 
-    public async Task<int> UpdateStatusAsync(string id, string status, long newVersion)
+    public async Task<int> UpdateStatusAsync(string id, string status, long newVersion, string? updatedBy = null)
     {
         using var connection = _connectionFactory.CreateConnection();
         var sql = @"
             UPDATE tasks
-            SET status = @Status, updated_at = @UpdatedAt, version = @Version
+            SET status = @Status, updated_by = @UpdatedBy, updated_at = @UpdatedAt, version = @Version
             WHERE id = @Id AND is_deleted = 0;";
 
         return await connection.ExecuteAsync(sql, new
         {
             Id = id,
             Status = status,
+            UpdatedBy = updatedBy,
             UpdatedAt = DateTime.UtcNow.ToString("O"),
             Version = newVersion
         });
     }
 
-    public async Task<int> SoftDeleteAsync(string id)
+    public async Task<int> SoftDeleteAsync(string id, string? updatedBy = null)
     {
         using var connection = _connectionFactory.CreateConnection();
         var sql = @"
             UPDATE tasks
-            SET is_deleted = 1, updated_at = @UpdatedAt, version = version + 1
+            SET is_deleted = 1, updated_by = @UpdatedBy, updated_at = @UpdatedAt, version = version + 1
             WHERE (id = @Id OR parent_task_id = @Id) AND is_deleted = 0;";
 
         return await connection.ExecuteAsync(sql, new
         {
             Id = id,
+            UpdatedBy = updatedBy,
             UpdatedAt = DateTime.UtcNow.ToString("O")
         });
     }

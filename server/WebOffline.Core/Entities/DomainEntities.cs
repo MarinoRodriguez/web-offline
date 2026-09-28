@@ -11,7 +11,9 @@ public class User
     public string PasswordHash { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string SystemRole { get; set; } = "user"; // "user" | "admin"
+    public string? CreatedBy { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public string? UpdatedBy { get; set; }
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public bool IsActive { get; set; } = true;
 }
@@ -37,7 +39,9 @@ public class Workspace
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string OwnerId { get; set; } = string.Empty;
+    public string CreatedBy { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public string? UpdatedBy { get; set; }
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public long Version { get; set; } = 1;
     public bool IsDeleted { get; set; } = false;
@@ -58,7 +62,9 @@ public class TaskList
     public string Name { get; set; } = string.Empty;
     public string Color { get; set; } = "#3B82F6";
     public int Position { get; set; } = 0;
+    public string CreatedBy { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public string? UpdatedBy { get; set; }
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public long Version { get; set; } = 1;
     public bool IsDeleted { get; set; } = false;
@@ -78,6 +84,7 @@ public class TaskItem
     public int Position { get; set; } = 0;
     public string CreatedBy { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public string? UpdatedBy { get; set; }
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public long Version { get; set; } = 1;
     public bool IsDeleted { get; set; } = false;

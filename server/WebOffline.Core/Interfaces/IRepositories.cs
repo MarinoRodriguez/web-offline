@@ -32,7 +32,7 @@ public interface IWorkspaceRepository
     Task<IEnumerable<WorkspaceDto>> GetUserWorkspacesAsync(string userId);
     Task<int> CreateAsync(Workspace workspace);
     Task<int> UpdateAsync(Workspace workspace);
-    Task<int> SoftDeleteAsync(string id);
+    Task<int> SoftDeleteAsync(string id, string? updatedBy = null);
     Task<int> AddMemberAsync(WorkspaceMember member);
     Task<int> RemoveMemberAsync(string workspaceId, string userId);
     Task<string?> GetUserRoleInWorkspaceAsync(string workspaceId, string userId);
@@ -45,7 +45,7 @@ public interface IListRepository
     Task<IEnumerable<TaskList>> GetByWorkspaceIdAsync(string workspaceId);
     Task<int> CreateAsync(TaskList list);
     Task<int> UpdateAsync(TaskList list);
-    Task<int> SoftDeleteAsync(string id);
+    Task<int> SoftDeleteAsync(string id, string? updatedBy = null);
 }
 
 public interface ITaskRepository
@@ -56,8 +56,8 @@ public interface ITaskRepository
     Task<IEnumerable<TaskItem>> GetSubtasksAsync(string parentTaskId);
     Task<int> CreateAsync(TaskItem task);
     Task<int> UpdateAsync(TaskItem task);
-    Task<int> UpdateStatusAsync(string id, string status, long newVersion);
-    Task<int> SoftDeleteAsync(string id);
+    Task<int> UpdateStatusAsync(string id, string status, long newVersion, string? updatedBy = null);
+    Task<int> SoftDeleteAsync(string id, string? updatedBy = null);
     Task<bool> AreAllSubtasksCompletedAsync(string parentTaskId);
     Task<int> CountPendingSubtasksAsync(string parentTaskId);
 }

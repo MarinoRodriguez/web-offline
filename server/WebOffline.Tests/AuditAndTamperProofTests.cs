@@ -13,18 +13,32 @@ namespace WebOffline.Tests;
 public class AuditAndTamperProofTests : IDisposable
 {
     private readonly string _auditDbPath;
+    private readonly string _mainDbPath;
     private readonly IAuditDbConnectionFactory _auditDbConnectionFactory;
+    private readonly ISqliteDbConnectionFactory _mainDbConnectionFactory;
     private readonly AuditDbInitializer _auditDbInitializer;
+    private readonly DbInitializer _mainDbInitializer;
     private readonly AuditRepository _auditRepository;
     private readonly AuditService _auditService;
+    private readonly UserRepository _userRepository;
+    private readonly WorkspaceRepository _workspaceRepository;
+    private readonly TaskRepository _taskRepository;
 
     public AuditAndTamperProofTests()
     {
         _auditDbPath = Path.Combine(Path.GetTempPath(), $"test_audit_{Guid.NewGuid():N}.db");
-        var connectionString = $"Data Source={_auditDbPath};";
-        _auditDbConnectionFactory = new AuditDbConnectionFactory(connectionString);
+        _mainDbPath = Path.Combine(Path.GetTempPath(), $"test_main_{Guid.NewGuid():N}.db");
+
+        _auditDbConnectionFactory = new AuditDbConnectionFactory($"Data Source={_auditDbPath};");
+        _mainDbConnectionFactory = new SqliteDbConnectionFactory($"Data Source={_mainDbPath};");
+
         _auditDbInitializer = new AuditDbInitializer(_auditDbConnectionFactory);
+        _mainDbInitializer = new DbInitializer(_mainDbConnectionFactory, new BcryptPasswordHasher());
+
         _auditRepository = new AuditRepository(_auditDbConnectionFactory);
+        _userRepository = new UserRepository(_mainDbConnectionFactory);
+        _workspaceRepository = new WorkspaceRepository(_mainDbConnectionFactory);
+        _taskRepository = new TaskRepository(_mainDbConnectionFactory);
 
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new[]
@@ -36,22 +50,21 @@ public class AuditAndTamperProofTests : IDisposable
         _auditService = new AuditService(_auditRepository, config);
 
         _auditDbInitializer.InitializeAsync().GetAwaiter().GetResult();
+        _mainDbInitializer.InitializeAsync().GetAwaiter().GetResult();
     }
 
     public void Dispose()
     {
         try
         {
-            if (File.Exists(_auditDbPath))
-            {
-                File.Delete(_auditDbPath);
-            }
+            if (File.Exists(_auditDbPath)) File.Delete(_auditDbPath);
+            if (File.Exists(_mainDbPath)) File.Delete(_mainDbPath);
         }
         catch { }
     }
 
     [Fact]
-    public async Task AuditRepository_ShouldStoreAndRetrieveHttpRequestLogs()
+    public async Task AuditRepository_ShouldStoreAndRetrieveHttpRequestLogsWithHeaders()
     {
         var log = new HttpRequestLog
         {
@@ -64,8 +77,10 @@ public class AuditAndTamperProofTests : IDisposable
             HttpMethod = "POST",
             Path = "/api/tasks",
             QueryString = "?filter=urgent",
+            RequestHeaders = "{\"Accept\":\"application/json\",\"Authorization\":\"Bearer ***REDACTED***\"}",
             RequestBody = "{\"title\":\"Test Task\"}",
             StatusCode = 201,
+            ResponseHeaders = "{\"Content-Type\":\"application/json; charset=utf-8\"}",
             ResponseBody = "{\"success\":true,\"data\":{\"id\":\"task-1\"}}",
             DurationMs = 45,
             CreatedAt = DateTime.UtcNow
@@ -82,6 +97,8 @@ public class AuditAndTamperProofTests : IDisposable
         Assert.Equal("/api/tasks", retrieved.Path);
         Assert.Equal(201, retrieved.StatusCode);
         Assert.Equal(45, retrieved.DurationMs);
+        Assert.Equal(log.RequestHeaders, retrieved.RequestHeaders);
+        Assert.Equal(log.ResponseHeaders, retrieved.ResponseHeaders);
     }
 
     [Fact]
@@ -93,7 +110,8 @@ public class AuditAndTamperProofTests : IDisposable
             Title = "Original Title",
             Status = "TODO",
             Priority = "LOW",
-            Version = 1
+            Version = 1,
+            CreatedBy = "user-1"
         };
 
         var taskNew = new TaskItem
@@ -102,7 +120,9 @@ public class AuditAndTamperProofTests : IDisposable
             Title = "Modified Title",
             Status = "IN_PROGRESS",
             Priority = "HIGH",
-            Version = 2
+            Version = 2,
+            CreatedBy = "user-1",
+            UpdatedBy = "user-2"
         };
 
         // 1. Record genuine changelog
@@ -147,22 +167,75 @@ public class AuditAndTamperProofTests : IDisposable
     [Fact]
     public async Task AuditChangelogs_ShouldChainHashesAcrossMultipleActions()
     {
-        // First entry (genesis, no prev hash)
         var entry1 = await _auditService.RecordChangeAsync(
             "u1", "u1@test.com", "CREATE", "Task", "t1", "Created t1",
             (TaskItem?)null, new TaskItem { Id = "t1", Title = "T1" });
 
         Assert.Null(entry1.PrevHash);
 
-        // Second entry must point to entry1's TamperHash
         var entry2 = await _auditService.RecordChangeAsync(
             "u1", "u1@test.com", "UPDATE", "Task", "t1", "Updated t1",
             new TaskItem { Id = "t1", Title = "T1" }, new TaskItem { Id = "t1", Title = "T1 v2" });
 
         Assert.Equal(entry1.TamperHash, entry2.PrevHash);
 
-        // Both must be valid
         Assert.True(_auditService.VerifyChangeLogIntegrity(entry1));
         Assert.True(_auditService.VerifyChangeLogIntegrity(entry2));
+    }
+
+    [Fact]
+    public async Task EntityAuditMetadata_ShouldTrackCreationAndModificationAuthorAndTimestamp()
+    {
+        var creatorId = Guid.NewGuid().ToString();
+        var modifierId = Guid.NewGuid().ToString();
+
+        await _userRepository.CreateAsync(new User
+        {
+            Id = creatorId,
+            Email = "creator@test.com",
+            FullName = "Creator",
+            PasswordHash = "x",
+            SystemRole = "user",
+            CreatedBy = "system"
+        });
+
+        await _userRepository.CreateAsync(new User
+        {
+            Id = modifierId,
+            Email = "modifier@test.com",
+            FullName = "Modifier",
+            PasswordHash = "x",
+            SystemRole = "user",
+            CreatedBy = "system"
+        });
+
+        // 1. Create Workspace with audit metadata
+        var ws = new Workspace
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = "Engineering Projects",
+            OwnerId = creatorId,
+            CreatedBy = creatorId,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedBy = creatorId,
+            UpdatedAt = DateTime.UtcNow
+        };
+        await _workspaceRepository.CreateAsync(ws);
+
+        var savedWs = await _workspaceRepository.GetByIdAsync(ws.Id);
+        Assert.NotNull(savedWs);
+        Assert.Equal(creatorId, savedWs.CreatedBy);
+        Assert.Equal(creatorId, savedWs.UpdatedBy);
+
+        // 2. Modify Workspace with different modifier user
+        savedWs.Name = "Engineering & Architecture";
+        savedWs.UpdatedBy = modifierId;
+        await _workspaceRepository.UpdateAsync(savedWs);
+
+        var updatedWs = await _workspaceRepository.GetByIdAsync(ws.Id);
+        Assert.NotNull(updatedWs);
+        Assert.Equal("Engineering & Architecture", updatedWs.Name);
+        Assert.Equal(creatorId, updatedWs.CreatedBy);
+        Assert.Equal(modifierId, updatedWs.UpdatedBy);
     }
 }

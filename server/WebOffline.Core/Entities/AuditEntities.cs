@@ -13,8 +13,10 @@ public class HttpRequestLog
     public string HttpMethod { get; set; } = string.Empty;
     public string Path { get; set; } = string.Empty;
     public string? QueryString { get; set; }
+    public string? RequestHeaders { get; set; } // JSON serialized request headers
     public string? RequestBody { get; set; }
     public int StatusCode { get; set; }
+    public string? ResponseHeaders { get; set; } // JSON serialized response headers
     public string? ResponseBody { get; set; }
     public long DurationMs { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

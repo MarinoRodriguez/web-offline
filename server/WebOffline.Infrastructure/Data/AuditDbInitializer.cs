@@ -30,8 +30,10 @@ public class AuditDbInitializer
                 http_method TEXT NOT NULL,
                 path TEXT NOT NULL,
                 query_string TEXT,
+                request_headers TEXT,
                 request_body TEXT,
                 status_code INTEGER NOT NULL,
+                response_headers TEXT,
                 response_body TEXT,
                 duration_ms INTEGER NOT NULL,
                 created_at TEXT NOT NULL

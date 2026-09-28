@@ -124,7 +124,9 @@ public class AuthController : BaseApiController
             FullName = request.FullName.Trim(),
             PasswordHash = _passwordHasher.HashPassword(request.Password),
             SystemRole = systemRole,
+            CreatedBy = CurrentUserId,
             CreatedAt = DateTime.UtcNow,
+            UpdatedBy = CurrentUserId,
             UpdatedAt = DateTime.UtcNow,
             IsActive = true
         };
@@ -137,7 +139,10 @@ public class AuthController : BaseApiController
             Email = newUser.Email,
             FullName = newUser.FullName,
             SystemRole = newUser.SystemRole,
-            CreatedAt = newUser.CreatedAt
+            CreatedBy = newUser.CreatedBy,
+            CreatedAt = newUser.CreatedAt,
+            UpdatedBy = newUser.UpdatedBy,
+            UpdatedAt = newUser.UpdatedAt
         };
 
         return CreatedAtAction(nameof(GetMe), null, ApiResponse<UserDto>.Ok(userDto, "User registered successfully", 201));
@@ -287,7 +292,10 @@ public class AuthController : BaseApiController
             Email = user.Email,
             FullName = user.FullName,
             SystemRole = user.SystemRole,
-            CreatedAt = user.CreatedAt
+            CreatedBy = user.CreatedBy,
+            CreatedAt = user.CreatedAt,
+            UpdatedBy = user.UpdatedBy,
+            UpdatedAt = user.UpdatedAt
         };
 
         return Ok(ApiResponse<UserDto>.Ok(dto));
@@ -310,7 +318,10 @@ public class AuthController : BaseApiController
             Email = u.Email,
             FullName = u.FullName,
             SystemRole = u.SystemRole,
-            CreatedAt = u.CreatedAt
+            CreatedBy = u.CreatedBy,
+            CreatedAt = u.CreatedAt,
+            UpdatedBy = u.UpdatedBy,
+            UpdatedAt = u.UpdatedAt
         });
 
         return Ok(ApiResponse<IEnumerable<UserDto>>.Ok(dtos));

@@ -48,7 +48,9 @@ public class ListsController : BaseApiController
             Name = l.Name,
             Color = l.Color,
             Position = l.Position,
+            CreatedBy = l.CreatedBy,
             CreatedAt = l.CreatedAt,
+            UpdatedBy = l.UpdatedBy,
             UpdatedAt = l.UpdatedAt,
             Version = l.Version
         });
@@ -78,7 +80,9 @@ public class ListsController : BaseApiController
             Name = list.Name,
             Color = list.Color,
             Position = list.Position,
+            CreatedBy = list.CreatedBy,
             CreatedAt = list.CreatedAt,
+            UpdatedBy = list.UpdatedBy,
             UpdatedAt = list.UpdatedAt,
             Version = list.Version
         };
@@ -107,7 +111,9 @@ public class ListsController : BaseApiController
             Name = request.Name.Trim(),
             Color = string.IsNullOrWhiteSpace(request.Color) ? "#3B82F6" : request.Color,
             Position = request.Position,
+            CreatedBy = CurrentUserId,
             CreatedAt = DateTime.UtcNow,
+            UpdatedBy = CurrentUserId,
             UpdatedAt = DateTime.UtcNow,
             Version = 1,
             IsDeleted = false
@@ -133,7 +139,9 @@ public class ListsController : BaseApiController
             Name = list.Name,
             Color = list.Color,
             Position = list.Position,
+            CreatedBy = list.CreatedBy,
             CreatedAt = list.CreatedAt,
+            UpdatedBy = list.UpdatedBy,
             UpdatedAt = list.UpdatedAt,
             Version = list.Version
         };
@@ -163,7 +171,9 @@ public class ListsController : BaseApiController
             Name = list.Name,
             Color = list.Color,
             Position = list.Position,
+            CreatedBy = list.CreatedBy,
             CreatedAt = list.CreatedAt,
+            UpdatedBy = list.UpdatedBy,
             UpdatedAt = list.UpdatedAt,
             Version = list.Version,
             IsDeleted = list.IsDeleted
@@ -172,6 +182,8 @@ public class ListsController : BaseApiController
         list.Name = request.Name.Trim();
         list.Color = request.Color;
         list.Position = request.Position;
+        list.UpdatedBy = CurrentUserId;
+        list.UpdatedAt = DateTime.UtcNow;
 
         await _listRepository.UpdateAsync(list);
 
@@ -193,8 +205,10 @@ public class ListsController : BaseApiController
             Name = list.Name,
             Color = list.Color,
             Position = list.Position,
+            CreatedBy = list.CreatedBy,
             CreatedAt = list.CreatedAt,
-            UpdatedAt = DateTime.UtcNow,
+            UpdatedBy = list.UpdatedBy,
+            UpdatedAt = list.UpdatedAt,
             Version = list.Version + 1
         };
 
@@ -216,7 +230,7 @@ public class ListsController : BaseApiController
             return StatusCode(StatusCodes.Status403Forbidden, ApiResponse.Fail("Access denied.", 403));
         }
 
-        await _listRepository.SoftDeleteAsync(id);
+        await _listRepository.SoftDeleteAsync(id, CurrentUserId);
 
         // Audit changelog
         await _auditService.RecordChangeAsync(

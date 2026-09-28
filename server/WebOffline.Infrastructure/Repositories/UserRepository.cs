@@ -22,8 +22,8 @@ public class UserRepository : IUserRepository
         using var connection = _connectionFactory.CreateConnection();
         return await connection.QuerySingleOrDefaultAsync<User>(
             @"SELECT id, email, password_hash as PasswordHash, full_name as FullName, 
-                     system_role as SystemRole, created_at as CreatedAt, updated_at as UpdatedAt, 
-                     is_active as IsActive 
+                     system_role as SystemRole, created_by as CreatedBy, created_at as CreatedAt, 
+                     updated_by as UpdatedBy, updated_at as UpdatedAt, is_active as IsActive 
               FROM users WHERE id = @Id;",
             new { Id = id });
     }
@@ -33,8 +33,8 @@ public class UserRepository : IUserRepository
         using var connection = _connectionFactory.CreateConnection();
         return await connection.QuerySingleOrDefaultAsync<User>(
             @"SELECT id, email, password_hash as PasswordHash, full_name as FullName, 
-                     system_role as SystemRole, created_at as CreatedAt, updated_at as UpdatedAt, 
-                     is_active as IsActive 
+                     system_role as SystemRole, created_by as CreatedBy, created_at as CreatedAt, 
+                     updated_by as UpdatedBy, updated_at as UpdatedAt, is_active as IsActive 
               FROM users WHERE LOWER(email) = LOWER(@Email);",
             new { Email = email });
     }
@@ -44,8 +44,8 @@ public class UserRepository : IUserRepository
         using var connection = _connectionFactory.CreateConnection();
         return await connection.QueryAsync<User>(
             @"SELECT id, email, password_hash as PasswordHash, full_name as FullName, 
-                     system_role as SystemRole, created_at as CreatedAt, updated_at as UpdatedAt, 
-                     is_active as IsActive 
+                     system_role as SystemRole, created_by as CreatedBy, created_at as CreatedAt, 
+                     updated_by as UpdatedBy, updated_at as UpdatedAt, is_active as IsActive 
               FROM users ORDER BY created_at DESC;");
     }
 
@@ -53,8 +53,8 @@ public class UserRepository : IUserRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         return await connection.ExecuteAsync(
-            @"INSERT INTO users (id, email, password_hash, full_name, system_role, created_at, updated_at, is_active)
-              VALUES (@Id, @Email, @PasswordHash, @FullName, @SystemRole, @CreatedAt, @UpdatedAt, @IsActive);",
+            @"INSERT INTO users (id, email, password_hash, full_name, system_role, created_by, created_at, updated_by, updated_at, is_active)
+              VALUES (@Id, @Email, @PasswordHash, @FullName, @SystemRole, @CreatedBy, @CreatedAt, @UpdatedBy, @UpdatedAt, @IsActive);",
             new
             {
                 user.Id,
@@ -62,7 +62,9 @@ public class UserRepository : IUserRepository
                 user.PasswordHash,
                 user.FullName,
                 user.SystemRole,
+                user.CreatedBy,
                 CreatedAt = user.CreatedAt.ToString("O"),
+                user.UpdatedBy,
                 UpdatedAt = user.UpdatedAt.ToString("O"),
                 IsActive = user.IsActive ? 1 : 0
             });
@@ -74,7 +76,7 @@ public class UserRepository : IUserRepository
         return await connection.ExecuteAsync(
             @"UPDATE users 
               SET email = @Email, password_hash = @PasswordHash, full_name = @FullName, 
-                  system_role = @SystemRole, updated_at = @UpdatedAt, is_active = @IsActive
+                  system_role = @SystemRole, updated_by = @UpdatedBy, updated_at = @UpdatedAt, is_active = @IsActive
               WHERE id = @Id;",
             new
             {
@@ -83,6 +85,7 @@ public class UserRepository : IUserRepository
                 user.PasswordHash,
                 user.FullName,
                 user.SystemRole,
+                user.UpdatedBy,
                 UpdatedAt = DateTime.UtcNow.ToString("O"),
                 IsActive = user.IsActive ? 1 : 0
             });

@@ -22,12 +22,12 @@ public class AuditRepository : IAuditRepository
         var sql = @"
             INSERT INTO http_request_logs (
                 id, correlation_id, user_id, user_email, client_ip, user_agent,
-                http_method, path, query_string, request_body, status_code,
-                response_body, duration_ms, created_at
+                http_method, path, query_string, request_headers, request_body, status_code,
+                response_headers, response_body, duration_ms, created_at
             ) VALUES (
                 @Id, @CorrelationId, @UserId, @UserEmail, @ClientIp, @UserAgent,
-                @HttpMethod, @Path, @QueryString, @RequestBody, @StatusCode,
-                @ResponseBody, @DurationMs, @CreatedAt
+                @HttpMethod, @Path, @QueryString, @RequestHeaders, @RequestBody, @StatusCode,
+                @ResponseHeaders, @ResponseBody, @DurationMs, @CreatedAt
             );";
 
         await connection.ExecuteAsync(sql, new
@@ -41,8 +41,10 @@ public class AuditRepository : IAuditRepository
             log.HttpMethod,
             log.Path,
             log.QueryString,
+            log.RequestHeaders,
             log.RequestBody,
             log.StatusCode,
+            log.ResponseHeaders,
             log.ResponseBody,
             log.DurationMs,
             CreatedAt = log.CreatedAt.ToString("O")
@@ -57,8 +59,9 @@ public class AuditRepository : IAuditRepository
         var sql = @"
             SELECT id, correlation_id as CorrelationId, user_id as UserId, user_email as UserEmail,
                    client_ip as ClientIp, user_agent as UserAgent, http_method as HttpMethod,
-                   path, query_string as QueryString, request_body as RequestBody,
-                   status_code as StatusCode, response_body as ResponseBody,
+                   path, query_string as QueryString, request_headers as RequestHeaders,
+                   request_body as RequestBody, status_code as StatusCode,
+                   response_headers as ResponseHeaders, response_body as ResponseBody,
                    duration_ms as DurationMs, created_at as CreatedAt
             FROM http_request_logs
             WHERE (@UserId IS NULL OR user_id = @UserId)

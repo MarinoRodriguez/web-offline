@@ -22,7 +22,8 @@ public class ListRepository : IListRepository
         using var connection = _connectionFactory.CreateConnection();
         return await connection.QuerySingleOrDefaultAsync<TaskList>(
             @"SELECT id, workspace_id as WorkspaceId, name, color, position, 
-                     created_at as CreatedAt, updated_at as UpdatedAt, 
+                     created_by as CreatedBy, created_at as CreatedAt, 
+                     updated_by as UpdatedBy, updated_at as UpdatedAt, 
                      version, is_deleted as IsDeleted
               FROM lists 
               WHERE id = @Id AND is_deleted = 0;",
@@ -34,7 +35,8 @@ public class ListRepository : IListRepository
         using var connection = _connectionFactory.CreateConnection();
         return await connection.QueryAsync<TaskList>(
             @"SELECT id, workspace_id as WorkspaceId, name, color, position, 
-                     created_at as CreatedAt, updated_at as UpdatedAt, 
+                     created_by as CreatedBy, created_at as CreatedAt, 
+                     updated_by as UpdatedBy, updated_at as UpdatedAt, 
                      version, is_deleted as IsDeleted
               FROM lists 
               WHERE workspace_id = @WorkspaceId AND is_deleted = 0
@@ -46,8 +48,8 @@ public class ListRepository : IListRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         var sql = @"
-            INSERT INTO lists (id, workspace_id, name, color, position, created_at, updated_at, version, is_deleted)
-            VALUES (@Id, @WorkspaceId, @Name, @Color, @Position, @CreatedAt, @UpdatedAt, @Version, 0);";
+            INSERT INTO lists (id, workspace_id, name, color, position, created_by, created_at, updated_by, updated_at, version, is_deleted)
+            VALUES (@Id, @WorkspaceId, @Name, @Color, @Position, @CreatedBy, @CreatedAt, @UpdatedBy, @UpdatedAt, @Version, 0);";
 
         return await connection.ExecuteAsync(sql, new
         {
@@ -56,7 +58,9 @@ public class ListRepository : IListRepository
             list.Name,
             list.Color,
             list.Position,
+            list.CreatedBy,
             CreatedAt = list.CreatedAt.ToString("O"),
+            list.UpdatedBy,
             UpdatedAt = list.UpdatedAt.ToString("O"),
             list.Version
         });
@@ -67,7 +71,8 @@ public class ListRepository : IListRepository
         using var connection = _connectionFactory.CreateConnection();
         var sql = @"
             UPDATE lists
-            SET name = @Name, color = @Color, position = @Position, updated_at = @UpdatedAt, version = version + 1
+            SET name = @Name, color = @Color, position = @Position, 
+                updated_by = @UpdatedBy, updated_at = @UpdatedAt, version = version + 1
             WHERE id = @Id AND is_deleted = 0;";
 
         return await connection.ExecuteAsync(sql, new
@@ -76,21 +81,23 @@ public class ListRepository : IListRepository
             list.Name,
             list.Color,
             list.Position,
+            list.UpdatedBy,
             UpdatedAt = DateTime.UtcNow.ToString("O")
         });
     }
 
-    public async Task<int> SoftDeleteAsync(string id)
+    public async Task<int> SoftDeleteAsync(string id, string? updatedBy = null)
     {
         using var connection = _connectionFactory.CreateConnection();
         var sql = @"
             UPDATE lists
-            SET is_deleted = 1, updated_at = @UpdatedAt, version = version + 1
+            SET is_deleted = 1, updated_by = @UpdatedBy, updated_at = @UpdatedAt, version = version + 1
             WHERE id = @Id AND is_deleted = 0;";
 
         return await connection.ExecuteAsync(sql, new
         {
             Id = id,
+            UpdatedBy = updatedBy,
             UpdatedAt = DateTime.UtcNow.ToString("O")
         });
     }

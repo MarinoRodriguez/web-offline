@@ -22,8 +22,8 @@ public class WorkspaceRepository : IWorkspaceRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         return await connection.QuerySingleOrDefaultAsync<Workspace>(
-            @"SELECT id, name, description, owner_id as OwnerId, 
-                     created_at as CreatedAt, updated_at as UpdatedAt, 
+            @"SELECT id, name, description, owner_id as OwnerId, created_by as CreatedBy,
+                     created_at as CreatedAt, updated_by as UpdatedBy, updated_at as UpdatedAt, 
                      version, is_deleted as IsDeleted
               FROM workspaces 
               WHERE id = @Id AND is_deleted = 0;",
@@ -34,8 +34,8 @@ public class WorkspaceRepository : IWorkspaceRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         var sql = @"
-            SELECT w.id, w.name, w.description, w.owner_id as OwnerId,
-                   w.created_at as CreatedAt, w.updated_at as UpdatedAt, w.version,
+            SELECT w.id, w.name, w.description, w.owner_id as OwnerId, w.created_by as CreatedBy,
+                   w.created_at as CreatedAt, w.updated_by as UpdatedBy, w.updated_at as UpdatedAt, w.version,
                    COALESCE(wm.role, CASE WHEN w.owner_id = @UserId THEN 'Owner' ELSE 'Viewer' END) as RoleInWorkspace
             FROM workspaces w
             LEFT JOIN workspace_members wm ON w.id = wm.workspace_id AND wm.user_id = @UserId
@@ -52,12 +52,14 @@ public class WorkspaceRepository : IWorkspaceRepository
         using var tx = connection.BeginTransaction();
 
         var wsSql = @"
-            INSERT INTO workspaces (id, name, description, owner_id, created_at, updated_at, version, is_deleted)
-            VALUES (@Id, @Name, @Description, @OwnerId, @CreatedAt, @UpdatedAt, @Version, 0);";
+            INSERT INTO workspaces (id, name, description, owner_id, created_by, created_at, updated_by, updated_at, version, is_deleted)
+            VALUES (@Id, @Name, @Description, @OwnerId, @CreatedBy, @CreatedAt, @UpdatedBy, @UpdatedAt, @Version, 0);";
 
         var memberSql = @"
             INSERT INTO workspace_members (workspace_id, user_id, role, joined_at)
             VALUES (@WorkspaceId, @UserId, 'Owner', @JoinedAt);";
+
+        var createdBy = string.IsNullOrWhiteSpace(workspace.CreatedBy) ? workspace.OwnerId : workspace.CreatedBy;
 
         var rows = await connection.ExecuteAsync(wsSql, new
         {
@@ -65,7 +67,9 @@ public class WorkspaceRepository : IWorkspaceRepository
             workspace.Name,
             workspace.Description,
             workspace.OwnerId,
+            CreatedBy = createdBy,
             CreatedAt = workspace.CreatedAt.ToString("O"),
+            workspace.UpdatedBy,
             UpdatedAt = workspace.UpdatedAt.ToString("O"),
             workspace.Version
         }, tx);
@@ -86,7 +90,8 @@ public class WorkspaceRepository : IWorkspaceRepository
         using var connection = _connectionFactory.CreateConnection();
         var sql = @"
             UPDATE workspaces
-            SET name = @Name, description = @Description, updated_at = @UpdatedAt, version = version + 1
+            SET name = @Name, description = @Description, updated_by = @UpdatedBy, 
+                updated_at = @UpdatedAt, version = version + 1
             WHERE id = @Id AND is_deleted = 0;";
 
         return await connection.ExecuteAsync(sql, new
@@ -94,21 +99,23 @@ public class WorkspaceRepository : IWorkspaceRepository
             workspace.Id,
             workspace.Name,
             workspace.Description,
+            workspace.UpdatedBy,
             UpdatedAt = DateTime.UtcNow.ToString("O")
         });
     }
 
-    public async Task<int> SoftDeleteAsync(string id)
+    public async Task<int> SoftDeleteAsync(string id, string? updatedBy = null)
     {
         using var connection = _connectionFactory.CreateConnection();
         var sql = @"
             UPDATE workspaces
-            SET is_deleted = 1, updated_at = @UpdatedAt, version = version + 1
+            SET is_deleted = 1, updated_by = @UpdatedBy, updated_at = @UpdatedAt, version = version + 1
             WHERE id = @Id AND is_deleted = 0;";
 
         return await connection.ExecuteAsync(sql, new
         {
             Id = id,
+            UpdatedBy = updatedBy,
             UpdatedAt = DateTime.UtcNow.ToString("O")
         });
     }

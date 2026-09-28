@@ -1,8 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -15,6 +18,7 @@ public class AuditLoggingMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<AuditLoggingMiddleware> _logger;
+    private static readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = false };
 
     public AuditLoggingMiddleware(RequestDelegate next, ILogger<AuditLoggingMiddleware> logger)
     {
@@ -35,7 +39,22 @@ public class AuditLoggingMiddleware
         var stopwatch = Stopwatch.StartNew();
         var correlationId = context.TraceIdentifier ?? Guid.NewGuid().ToString();
 
-        // 1. Read and buffer Request Body
+        // 1. Capture Request Headers
+        var requestHeadersDict = new Dictionary<string, string>();
+        foreach (var header in context.Request.Headers)
+        {
+            if (header.Key.Equals("Authorization", StringComparison.OrdinalIgnoreCase))
+            {
+                requestHeadersDict[header.Key] = "Bearer ***REDACTED***";
+            }
+            else
+            {
+                requestHeadersDict[header.Key] = header.Value.ToString();
+            }
+        }
+        var requestHeadersJson = JsonSerializer.Serialize(requestHeadersDict, _jsonOptions);
+
+        // 2. Read and buffer Request Body
         context.Request.EnableBuffering();
         string requestBody = string.Empty;
 
@@ -50,10 +69,9 @@ public class AuditLoggingMiddleware
             context.Request.Body.Position = 0; // Reset for downstream handlers
         }
 
-        // Sanitize sensitive fields in request body if needed (e.g. passwords)
         var sanitizedRequestBody = SanitizePayload(requestBody);
 
-        // 2. Intercept Response Body
+        // 3. Intercept Response Body
         var originalResponseBodyStream = context.Response.Body;
         using var memoryResponseStream = new MemoryStream();
         context.Response.Body = memoryResponseStream;
@@ -83,6 +101,14 @@ public class AuditLoggingMiddleware
             context.Response.Body = originalResponseBodyStream;
             stopwatch.Stop();
 
+            // 4. Capture Response Headers
+            var responseHeadersDict = new Dictionary<string, string>();
+            foreach (var header in context.Response.Headers)
+            {
+                responseHeadersDict[header.Key] = header.Value.ToString();
+            }
+            var responseHeadersJson = JsonSerializer.Serialize(responseHeadersDict, _jsonOptions);
+
             // Extract user claims if authenticated
             var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var userEmail = context.User.FindFirst(ClaimTypes.Email)?.Value;
@@ -100,8 +126,10 @@ public class AuditLoggingMiddleware
                 HttpMethod = context.Request.Method,
                 Path = path,
                 QueryString = context.Request.QueryString.HasValue ? context.Request.QueryString.Value : null,
+                RequestHeaders = requestHeadersJson,
                 RequestBody = string.IsNullOrWhiteSpace(sanitizedRequestBody) ? null : sanitizedRequestBody,
                 StatusCode = statusCode,
+                ResponseHeaders = responseHeadersJson,
                 ResponseBody = string.IsNullOrWhiteSpace(responseBody) ? null : responseBody,
                 DurationMs = stopwatch.ElapsedMilliseconds,
                 CreatedAt = DateTime.UtcNow
@@ -122,7 +150,6 @@ public class AuditLoggingMiddleware
     {
         if (string.IsNullOrWhiteSpace(payload)) return payload;
 
-        // Mask password fields in json payloads for security
         return System.Text.RegularExpressions.Regex.Replace(
             payload,
             @"(""password""\s*:\s*"")[^""]*("")",
