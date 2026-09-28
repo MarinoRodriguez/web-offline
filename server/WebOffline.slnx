@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="WebOffline.Api/WebOffline.Api.csproj" />
+  <Project Path="WebOffline.Core/WebOffline.Core.csproj" />
+  <Project Path="WebOffline.Infrastructure/WebOffline.Infrastructure.csproj" />
+  <Project Path="WebOffline.Tests/WebOffline.Tests.csproj" />
+</Solution>
