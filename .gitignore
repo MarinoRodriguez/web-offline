@@ -1,0 +1,42 @@
+# Build and Output folders
+**/bin/
+**/obj/
+**/dist/
+**/build/
+**/out/
+
+# Dependencies
+**/node_modules/
+**/.pnp/
+**/.pnp.js
+
+# SQLite local databases (keep test seed scripts or templates, ignore local runtime databases)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Logs and environment
+*.log
+.env
+.env.local
+.env.*.local
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# OS Generated
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
