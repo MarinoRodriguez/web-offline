@@ -9,7 +9,7 @@ import { ModalRoot } from '../modals/ModalRoot';
 import { 
   Database, Wifi, WifiOff, Briefcase, LogOut, 
   ShieldCheck, RefreshCw, CheckCircle2, AlertCircle,
-  Key, UserPlus
+  Key, UserPlus, Download
 } from 'lucide-react';
 
 export const AppLayout: React.FC = () => {
@@ -22,6 +22,10 @@ export const AppLayout: React.FC = () => {
   const [connectivityState, setConnectivityState] = useState<ConnectivityState>(connectivity.getState());
   const [storageType, setStorageType] = useState<string>('Detecting...');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isStandalone, setIsStandalone] = useState<boolean>(() => {
+    return window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+  });
 
   useEffect(() => {
     const unsubscribe = connectivity.subscribe((state) => {
@@ -32,7 +36,19 @@ export const AppLayout: React.FC = () => {
       handleTriggerRefresh();
     };
 
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    const handleAppInstalled = () => {
+      setIsStandalone(true);
+      setDeferredPrompt(null);
+    };
+
     window.addEventListener('app:data-synced', handleDataSynced);
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
 
     async function checkDb() {
       try {
@@ -48,8 +64,27 @@ export const AppLayout: React.FC = () => {
     return () => {
       unsubscribe();
       window.removeEventListener('app:data-synced', handleDataSynced);
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
+
+  const handleInstallApp = async () => {
+    if (deferredPrompt) {
+      await deferredPrompt.prompt();
+      const choiceResult = await deferredPrompt.userChoice;
+      if (choiceResult && choiceResult.outcome === 'accepted') {
+        setDeferredPrompt(null);
+      }
+    } else {
+      alert(
+        'Para instalar esta aplicación PWA:\n\n' +
+        '• En Google Chrome o Edge: Haz clic en el ícono de instalación en la barra de direcciones (o en el menú ⋮ -> "Instalar Offline Task Manager").\n' +
+        '• En iPhone / iPad (Safari): Pulsa el botón Compartir y elige "Añadir a la pantalla de inicio".\n' +
+        '• En Android: Abre el menú ⋮ y pulsa "Instalar aplicación" o "Añadir a pantalla principal".'
+      );
+    }
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -198,6 +233,32 @@ export const AppLayout: React.FC = () => {
             <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-blue-400' : ''}`} />
             <span>{isSyncing ? 'Sincronizando...' : 'Sincronizar'}</span>
           </button>
+
+          {/* PWA Install Button (if not standalone) */}
+          {!isStandalone ? (
+            <button
+              type="button"
+              onClick={handleInstallApp}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition shadow-sm ${
+                deferredPrompt 
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-blue-500/20 animate-pulse'
+                  : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/60'
+              }`}
+              title="Instalar aplicación en tu escritorio o móvil (PWA Offline)"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Instalar App</span>
+              <span className="sm:hidden">Instalar</span>
+            </button>
+          ) : (
+            <div 
+              className="hidden lg:flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 text-[11px] font-mono text-blue-400"
+              title="Aplicación ejecutándose en modo PWA Standalone instalado"
+            >
+              <CheckCircle2 className="w-3 h-3 text-blue-400" />
+              <span>PWA Activa</span>
+            </div>
+          )}
 
           {/* User Menu */}
           {user && (

@@ -7,31 +7,67 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg', '*.wasm'],
+      injectRegister: 'auto',
+      devOptions: {
+        enabled: true,
+      },
+      includeAssets: [
+        'favicon.svg',
+        'favicon-64x64.png',
+        'favicon.ico',
+        'apple-touch-icon.png',
+        'pwa-192x192.png',
+        'pwa-512x512.png',
+        '*.wasm',
+        'sqlite3-opfs-async-proxy.js'
+      ],
       manifest: {
         name: 'Offline Task Manager',
         short_name: 'TaskManager',
         description: 'Offline-First Task Management System with SQLite Wasm and OPFS',
-        theme_color: '#2563eb',
-        background_color: '#0f172a',
+        id: '/',
+        start_url: '/',
+        scope: '/',
         display: 'standalone',
+        display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
         orientation: 'portrait',
+        background_color: '#0f172a',
+        theme_color: '#2563eb',
+        lang: 'es',
+        dir: 'ltr',
+        categories: ['productivity', 'utilities'],
         icons: [
           {
             src: '/pwa-192x192.png',
             sizes: '192x192',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: '/pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable'
           },
           {
             src: '/pwa-512x512.png',
             sizes: '512x512',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: '/pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
           }
         ]
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm}'],
-        maximumFileSizeToCacheInBytes: 15 * 1024 * 1024, // 15MB to allow caching sqlite3.wasm
+        maximumFileSizeToCacheInBytes: 25 * 1024 * 1024, // 25MB to safely cache sqlite3.wasm
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
