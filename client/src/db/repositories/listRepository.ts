@@ -74,7 +74,7 @@ export const localListRepository = {
 
       await sqliteClient.execute(`
         INSERT INTO lists (id, workspace_id, name, color, position, created_by, created_at, updated_by, updated_at, version, is_deleted)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
       `, [
         created.id, created.workspace_id, created.name, created.color, created.position,
         created.created_by, created.created_at, created.updated_by, created.updated_at,
