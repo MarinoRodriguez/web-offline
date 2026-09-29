@@ -7,6 +7,7 @@ import { AppLayout } from './components/layout/AppLayout';
 import { LoginPage } from './pages/LoginPage';
 import { WorkspacesPage } from './pages/WorkspacesPage';
 import { WorkspaceDetailPage } from './pages/WorkspaceDetailPage';
+import { AdminAuditPage } from './pages/AdminAuditPage';
 
 export function App() {
   return (
@@ -23,6 +24,7 @@ export function App() {
                 <Route path="/" element={<Navigate to="/workspaces" replace />} />
                 <Route path="/workspaces" element={<WorkspacesPage />} />
                 <Route path="/workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
+                <Route path="/admin/audit" element={<AdminAuditPage />} />
               </Route>
             </Route>
 

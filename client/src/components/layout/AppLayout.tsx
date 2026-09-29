@@ -95,6 +95,20 @@ export const AppLayout: React.FC = () => {
               <Briefcase className="w-3.5 h-3.5" />
               Workspaces
             </Link>
+
+            {isAdmin && (
+              <Link
+                to="/admin/audit"
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                  location.pathname.startsWith('/admin/audit')
+                    ? 'bg-purple-600/10 text-purple-400 border border-purple-500/20'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                Auditoría
+              </Link>
+            )}
           </nav>
         </div>
 
