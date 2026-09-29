@@ -8,6 +8,20 @@ interface Props {
   onTaskUpdated?: () => void;
 }
 
+const getStatusBadge = (status?: string) => {
+  switch (status) {
+    case 'DONE':
+      return { label: 'Completada', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' };
+    case 'IN_PROGRESS':
+      return { label: 'En curso', className: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' };
+    case 'CANCELLED':
+      return { label: 'Cancelada', className: 'bg-rose-500/10 text-rose-400 border-rose-500/20' };
+    case 'TODO':
+    default:
+      return { label: 'Por hacer', className: 'bg-slate-500/10 text-slate-300 border-slate-700/60' };
+  }
+};
+
 export const TaskDetailModal: React.FC<Props> = ({ onTaskUpdated }) => {
   const { closeModal, getParam, openModal } = useUrlParams();
   const taskId = getParam('taskId');
@@ -116,7 +130,16 @@ export const TaskDetailModal: React.FC<Props> = ({ onTaskUpdated }) => {
         {/* Header */}
         <div className="p-6 border-b border-slate-800 flex items-start justify-between">
           <div className="space-y-1 pr-6 flex-1">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {(() => {
+                const st = getStatusBadge(task?.status);
+                return (
+                  <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full border ${st.className}`}>
+                    {st.label}
+                  </span>
+                );
+              })()}
+
               <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full border ${
                 task?.priority === 'URGENT' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
                 task?.priority === 'HIGH' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
@@ -125,6 +148,7 @@ export const TaskDetailModal: React.FC<Props> = ({ onTaskUpdated }) => {
               }`}>
                 {task?.priority}
               </span>
+
               {task?.due_date && (
                 <span className="text-xs text-slate-400 flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5" />

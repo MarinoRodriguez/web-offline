@@ -11,6 +11,20 @@ import {
   Calendar, Layers, CheckSquare
 } from 'lucide-react';
 
+const getStatusBadge = (status: string) => {
+  switch (status) {
+    case 'DONE':
+      return { label: 'Completada', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' };
+    case 'IN_PROGRESS':
+      return { label: 'En curso', className: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' };
+    case 'CANCELLED':
+      return { label: 'Cancelada', className: 'bg-rose-500/10 text-rose-400 border-rose-500/20' };
+    case 'TODO':
+    default:
+      return { label: 'Por hacer', className: 'bg-slate-500/10 text-slate-300 border-slate-700/60' };
+  }
+};
+
 export const WorkspaceDetailPage: React.FC = () => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const { onRefreshData, refreshTrigger } = useOutletContext<{ onRefreshData: () => void; refreshTrigger?: number }>();
@@ -97,19 +111,32 @@ export const WorkspaceDetailPage: React.FC = () => {
       onClick={() => openModal('task-detail', { taskId: task.id })}
       className="p-4 rounded-xl bg-slate-950 border border-slate-800/80 hover:border-blue-500/50 hover:bg-slate-950/90 transition cursor-pointer shadow-md group relative"
     >
-      {/* Priority badge & Due date */}
-      <div className="flex items-center justify-between mb-2">
-        <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${
-          task.priority === 'URGENT' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
-          task.priority === 'HIGH' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-          task.priority === 'LOW' ? 'bg-slate-500/10 text-slate-400 border-slate-500/20' :
-          'bg-blue-500/10 text-blue-400 border-blue-500/20'
-        }`}>
-          {task.priority}
-        </span>
+      {/* Status & Priority badges & Due date */}
+      <div className="flex items-center justify-between mb-2 gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Status badge */}
+          {(() => {
+            const st = getStatusBadge(task.status);
+            return (
+              <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${st.className}`}>
+                {st.label}
+              </span>
+            );
+          })()}
+
+          {/* Priority badge */}
+          <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${
+            task.priority === 'URGENT' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+            task.priority === 'HIGH' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+            task.priority === 'LOW' ? 'bg-slate-500/10 text-slate-400 border-slate-500/20' :
+            'bg-blue-500/10 text-blue-400 border-blue-500/20'
+          }`}>
+            {task.priority}
+          </span>
+        </div>
 
         {task.due_date && (
-          <span className="text-[10px] text-slate-500 flex items-center gap-1">
+          <span className="text-[10px] text-slate-500 flex items-center gap-1 shrink-0">
             <Calendar className="w-3 h-3" />
             {new Date(task.due_date).toLocaleDateString()}
           </span>
@@ -387,6 +414,7 @@ export const WorkspaceDetailPage: React.FC = () => {
                 <th className="p-3 w-10"></th>
                 <th className="p-3 font-semibold text-slate-300">Tarea</th>
                 <th className="p-3 font-semibold text-slate-300">Lista</th>
+                <th className="p-3 font-semibold text-slate-300">Estado</th>
                 <th className="p-3 font-semibold text-slate-300">Prioridad</th>
                 <th className="p-3 font-semibold text-slate-300">Subtareas</th>
                 <th className="p-3 font-semibold text-slate-300">Fecha Límite</th>
@@ -432,6 +460,16 @@ export const WorkspaceDetailPage: React.FC = () => {
                           Sin lista (Inbox)
                         </span>
                       )}
+                    </td>
+                    <td className="p-3">
+                      {(() => {
+                        const st = getStatusBadge(task.status);
+                        return (
+                          <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${st.className}`}>
+                            {st.label}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="p-3">
                       <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${
