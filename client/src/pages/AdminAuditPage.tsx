@@ -96,20 +96,61 @@ export const AdminAuditPage: React.FC = () => {
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
+  const formatDateSafe = (dateVal?: string | null): string => {
+    if (!dateVal) return '-';
+    try {
+      let d = new Date(dateVal);
+      if (isNaN(d.getTime())) {
+        // 1. Clean sub-millisecond nanoseconds: .1234567 -> .123
+        const cleaned = dateVal.replace(/\.(\d{3})\d+([+-Z]|$)/i, '.$1$2');
+        d = new Date(cleaned);
+      }
+      if (isNaN(d.getTime())) {
+        // 2. Strip fractional seconds completely if still failing:
+        const cleanedNoFrac = dateVal.replace(/\.\d+([+-Z]|$)/i, '$1');
+        d = new Date(cleanedNoFrac);
+      }
+      return !isNaN(d.getTime()) ? d.toLocaleString() : String(dateVal);
+    } catch {
+      return String(dateVal);
+    }
+  };
+
   const formatJsonOrText = (raw?: string | null): string => {
     if (!raw) return '';
     try {
       let parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      if (typeof parsed === 'string') {
+      while (typeof parsed === 'string') {
         try {
           parsed = JSON.parse(parsed);
         } catch {
-          // keep as string
+          break;
         }
       }
       return JSON.stringify(parsed, null, 2);
     } catch {
       return raw;
+    }
+  };
+
+  const parseDiffJson = (raw?: string | null): {
+    type?: string;
+    changedFields?: Record<string, { from?: any; to?: any }>;
+    state?: Record<string, any>;
+  } | null => {
+    if (!raw) return null;
+    try {
+      let parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      while (typeof parsed === 'string') {
+        try {
+          parsed = JSON.parse(parsed);
+        } catch {
+          break;
+        }
+      }
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+      return null;
     }
   };
 
@@ -350,7 +391,7 @@ export const AdminAuditPage: React.FC = () => {
                       return (
                         <tr key={log.id} className="hover:bg-slate-800/40 transition">
                           <td className="p-3 text-slate-400 whitespace-nowrap font-mono text-[11px]">
-                            {logDate ? new Date(logDate).toLocaleString() : '-'}
+                            {formatDateSafe(log.timestamp || log.createdAt)}
                           </td>
                           <td className="p-3">
                             <div className="font-semibold text-white">{log.userFullName || log.userEmail || 'Sistema'}</div>
@@ -445,7 +486,7 @@ export const AdminAuditPage: React.FC = () => {
                       return (
                         <tr key={req.id} className="hover:bg-slate-800/40 transition">
                           <td className="p-3 text-slate-400 whitespace-nowrap font-mono text-[11px]">
-                            {new Date(req.createdAt).toLocaleString()}
+                            {formatDateSafe(req.createdAt)}
                           </td>
                           <td className="p-3 whitespace-nowrap">
                             <span className={`px-2 py-0.5 rounded font-mono text-[10px] font-bold border ${getHttpMethodBadge(req.httpMethod)}`}>
@@ -541,7 +582,7 @@ export const AdminAuditPage: React.FC = () => {
                 <div>
                   <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">Fecha / Hora:</span>
                   <span className="text-white font-mono text-[11px]">
-                    {new Date(selectedChangeLog.timestamp || selectedChangeLog.createdAt || '').toLocaleString()}
+                    {formatDateSafe(selectedChangeLog.timestamp || selectedChangeLog.createdAt)}
                   </span>
                 </div>
                 <div>
@@ -576,12 +617,67 @@ export const AdminAuditPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Diffing */}
+              {/* Visual Diffing Table & Creation Notice */}
+              {(() => {
+                const parsedDiff = parseDiffJson(selectedChangeLog.diffJson);
+                if (!parsedDiff) return null;
+
+                if (parsedDiff.changedFields && Object.keys(parsedDiff.changedFields).length > 0) {
+                  return (
+                    <div className="space-y-2">
+                      <div className="font-semibold text-slate-300 uppercase tracking-wider text-[11px] flex items-center gap-2">
+                        <Activity className="w-3.5 h-3.5 text-purple-400" />
+                        <span>Tabla Comparativa de Campos Modificados:</span>
+                      </div>
+                      <div className="rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-900 border-b border-slate-800 text-slate-400 font-mono text-[10px] uppercase">
+                            <tr>
+                              <th className="p-2.5">Propiedad</th>
+                              <th className="p-2.5">Valor Anterior (Old)</th>
+                              <th className="p-2.5">Valor Posterior (New)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
+                            {Object.entries(parsedDiff.changedFields).map(([prop, change]) => (
+                              <tr key={prop} className="hover:bg-slate-900/40">
+                                <td className="p-2.5 text-purple-300 font-semibold">{prop}</td>
+                                <td className="p-2.5 text-rose-400 bg-rose-500/5">
+                                  <span className="line-through">{typeof change.from === 'object' ? JSON.stringify(change.from) : String(change.from ?? 'null')}</span>
+                                </td>
+                                <td className="p-2.5 text-emerald-400 bg-emerald-500/5 font-bold">
+                                  <span>{typeof change.to === 'object' ? JSON.stringify(change.to) : String(change.to ?? 'null')}</span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (parsedDiff.type === 'CREATED') {
+                  return (
+                    <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 flex items-center gap-2.5 font-mono text-[11px]">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                      <div>
+                        <span className="font-bold">CREACIÓN DE ENTIDAD:</span> Registro creado desde cero (sin versiones o mutaciones anteriores).
+                      </div>
+                    </div>
+                  );
+                }
+
+                return null;
+              })()}
+
+              {/* Formatted diffJson */}
               {selectedChangeLog.diffJson && (
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-semibold text-slate-300 uppercase tracking-wider text-[11px]">
-                      Diffing de Atributos Alterados:
+                    <span className="font-semibold text-slate-300 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                      Estructura Diffing (diffJson formateado):
                     </span>
                     <button
                       type="button"
@@ -598,12 +694,36 @@ export const AdminAuditPage: React.FC = () => {
                 </div>
               )}
 
-              {/* State Before / Old Values */}
-              {(selectedChangeLog.oldValuesJson || selectedChangeLog.stateBeforeJson) && (
+              {/* Formatted newValuesJson (Resulting Payload) */}
+              {(selectedChangeLog.newValuesJson || selectedChangeLog.stateAfterJson) && (
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-semibold text-slate-300 uppercase tracking-wider text-[11px]">
-                      Estado Anterior (Old Values):
+                    <span className="font-semibold text-slate-300 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                      Payload Posterior / Estado Resultante (newValuesJson formateado):
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(formatJsonOrText(selectedChangeLog.newValuesJson || selectedChangeLog.stateAfterJson), 'newValues')}
+                      className="text-slate-400 hover:text-white flex items-center gap-1 text-[10px] transition"
+                    >
+                      {copiedKey === 'newValues' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedKey === 'newValues' ? 'Copiado' : 'Copiar Payload'}</span>
+                    </button>
+                  </div>
+                  <pre className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-emerald-300 font-mono text-[11px] overflow-x-auto whitespace-pre-wrap max-h-72">
+                    {formatJsonOrText(selectedChangeLog.newValuesJson || selectedChangeLog.stateAfterJson)}
+                  </pre>
+                </div>
+              )}
+
+              {/* Formatted oldValuesJson (Previous Payload) */}
+              {(selectedChangeLog.oldValuesJson || selectedChangeLog.stateBeforeJson) ? (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="font-semibold text-slate-300 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                      Payload Anterior / Estado Previo (oldValuesJson formateado):
                     </span>
                     <button
                       type="button"
@@ -618,27 +738,9 @@ export const AdminAuditPage: React.FC = () => {
                     {formatJsonOrText(selectedChangeLog.oldValuesJson || selectedChangeLog.stateBeforeJson)}
                   </pre>
                 </div>
-              )}
-
-              {/* State After / New Values */}
-              {(selectedChangeLog.newValuesJson || selectedChangeLog.stateAfterJson) && (
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-semibold text-slate-300 uppercase tracking-wider text-[11px]">
-                      Estado Posterior (New Values):
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(formatJsonOrText(selectedChangeLog.newValuesJson || selectedChangeLog.stateAfterJson), 'newValues')}
-                      className="text-slate-400 hover:text-white flex items-center gap-1 text-[10px] transition"
-                    >
-                      {copiedKey === 'newValues' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                      <span>{copiedKey === 'newValues' ? 'Copiado' : 'Copiar'}</span>
-                    </button>
-                  </div>
-                  <pre className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-emerald-300 font-mono text-[11px] overflow-x-auto whitespace-pre-wrap max-h-64">
-                    {formatJsonOrText(selectedChangeLog.newValuesJson || selectedChangeLog.stateAfterJson)}
-                  </pre>
+              ) : (
+                <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-500 font-mono text-[11px]">
+                  Sin estado anterior (oldValuesJson: null) - La entidad fue creada nueva en este punto.
                 </div>
               )}
             </div>
@@ -731,7 +833,7 @@ export const AdminAuditPage: React.FC = () => {
                 <div>
                   <span className="text-slate-500 block text-[10px] uppercase font-bold tracking-wider">Fecha / Hora (CreatedAt):</span>
                   <span className="text-white font-mono text-[11px] block mt-0.5">
-                    {new Date(selectedRequest.createdAt).toLocaleString()}
+                    {formatDateSafe(selectedRequest.createdAt)}
                   </span>
                 </div>
 
