@@ -6,7 +6,6 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
-  loginOffline: (email?: string, fullName?: string) => void;
   logout: () => Promise<void>;
   loading: boolean;
 }
@@ -48,20 +47,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(loggedUser);
   };
 
-  const loginOffline = (email = 'offline@local', fullName = 'Usuario Local') => {
-    const offlineUser: AuthUser = {
-      id: 'offline-local-user',
-      email,
-      fullName,
-      systemRole: 'admin',
-    };
-    authStorage.setAuth({ accessToken: 'offline-local-token' }, offlineUser);
-    setUser(offlineUser);
-  };
-
   const logout = async () => {
     const token = authStorage.getAccessToken();
-    if (token && token !== 'offline-local-token') {
+    if (token) {
       try {
         await fetch('/api/auth/logout', {
           method: 'POST',
@@ -85,7 +73,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated: !!user,
         isAdmin: user?.systemRole?.toLowerCase() === 'admin',
         login,
-        loginOffline,
         logout,
         loading,
       }}

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Database, Lock, Mail, ArrowRight, ShieldCheck, Sparkles, WifiOff } from 'lucide-react';
+import { Database, Lock, Mail, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
-  const { login, loginOffline } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectPath = searchParams.get('redirect') || '/workspaces';
@@ -27,7 +27,7 @@ export const LoginPage: React.FC = () => {
       await login(email.trim(), password);
       navigate(redirectPath, { replace: true });
     } catch (err: any) {
-      setError(err?.message || 'No se pudo conectar al servidor. Puedes usar "Modo Offline" para acceder a tus datos locales.');
+      setError(err?.message || 'Credenciales inválidas.');
     } finally {
       setLoading(false);
     }
@@ -36,11 +36,6 @@ export const LoginPage: React.FC = () => {
   const handleQuickFillAdmin = () => {
     setEmail('admin@offline.local');
     setPassword('AdminPassword123!');
-  };
-
-  const handleEnterOffline = () => {
-    loginOffline('offline@local', 'Usuario Offline');
-    navigate(redirectPath, { replace: true });
   };
 
   return (
@@ -121,18 +116,6 @@ export const LoginPage: React.FC = () => {
                 <span>Usar credenciales de Administrador</span>
               </div>
               <Sparkles className="w-3.5 h-3.5 group-hover:rotate-12 transition-transform" />
-            </button>
-
-            <button
-              type="button"
-              onClick={handleEnterOffline}
-              className="w-full mt-2.5 flex items-center justify-between p-3 rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 text-slate-300 text-xs transition group"
-            >
-              <div className="flex items-center gap-2">
-                <WifiOff className="w-4 h-4 text-amber-400" />
-                <span>Continuar en Modo Offline (Acceder sin servidor)</span>
-              </div>
-              <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:translate-x-0.5 transition-transform" />
             </button>
           </div>
         </div>
