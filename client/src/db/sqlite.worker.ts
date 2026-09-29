@@ -21,19 +21,21 @@ async function initializeDatabase(): Promise<void> {
     const sqlite3 = await (sqlite3InitModule as any)({
       print: console.log,
       printErr: console.error,
+      locateFile: (file: string) => `/${file}`,
     });
 
     if ('opfs' in sqlite3) {
       try {
         db = new sqlite3.oo1.OpfsDb('/task_manager_local.db');
         storageType = 'OPFS (Persistent)';
-      } catch (opfsErr) {
-        console.warn('OPFS initialization failed, falling back to memory/virtual DB:', opfsErr);
+        console.info('[SQLite Worker] Successfully initialized persistent database in OPFS (/task_manager_local.db)');
+      } catch (opfsErr: any) {
+        console.error('[SQLite Worker] OPFS instantiation failed:', opfsErr);
         db = new sqlite3.oo1.DB('/task_manager_local.db', 'ct');
         storageType = 'Virtual (Fallback)';
       }
     } else {
-      console.warn('OPFS not supported in this environment, using standard SQLite DB:');
+      console.warn('[SQLite Worker] OPFS not supported in this browser context (requires COOP/COEP isolation). Using Virtual DB.');
       db = new sqlite3.oo1.DB('/task_manager_local.db', 'ct');
       storageType = 'Virtual (No OPFS)';
     }

@@ -117,10 +117,23 @@ export const AppLayout: React.FC = () => {
         {/* Right Info Badges & Actions */}
         <div className="flex items-center gap-3">
           {/* Storage Type */}
-          <div className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs">
+          <div 
+            className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs ${
+              storageType.includes('OPFS')
+                ? 'bg-slate-950 border-slate-800'
+                : 'bg-amber-500/10 border-amber-500/30'
+            }`}
+            title={
+              storageType.includes('OPFS')
+                ? 'Base de datos SQLite persistente en disco (OPFS)'
+                : 'Almacenamiento volátil en memoria. Al recargar se perderán los datos sin OPFS.'
+            }
+          >
             <span className="text-slate-500">Storage:</span>
-            <span className="font-medium text-emerald-400 flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3" />
+            <span className={`font-medium flex items-center gap-1 ${
+              storageType.includes('OPFS') ? 'text-emerald-400' : 'text-amber-400 font-bold'
+            }`}>
+              {storageType.includes('OPFS') ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3 text-amber-400" />}
               {storageType}
             </span>
           </div>
