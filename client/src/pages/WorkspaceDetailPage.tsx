@@ -13,7 +13,7 @@ import {
 
 export const WorkspaceDetailPage: React.FC = () => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
-  const { onRefreshData } = useOutletContext<{ onRefreshData: () => void }>();
+  const { onRefreshData, refreshTrigger } = useOutletContext<{ onRefreshData: () => void; refreshTrigger?: number }>();
 
   const {
     openModal,
@@ -53,7 +53,7 @@ export const WorkspaceDetailPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [loadData, refreshTrigger]);
 
   // Filter tasks based on URL parameters
   const filteredTasks = tasks.filter(task => {

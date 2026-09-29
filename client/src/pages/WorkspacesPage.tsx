@@ -7,8 +7,7 @@ import { Briefcase, Plus, ArrowRight, Trash2, Search, FolderKanban } from 'lucid
 export const WorkspacesPage: React.FC = () => {
   const navigate = useNavigate();
   const { openModal } = useUrlParams();
-  const { onRefreshData } = useOutletContext<{ onRefreshData: () => void }>();
-
+  const { onRefreshData, refreshTrigger } = useOutletContext<{ onRefreshData: () => void; refreshTrigger?: number }>();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -27,7 +26,7 @@ export const WorkspacesPage: React.FC = () => {
 
   useEffect(() => {
     loadWorkspaces();
-  }, [loadWorkspaces]);
+  }, [loadWorkspaces, refreshTrigger]);
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
