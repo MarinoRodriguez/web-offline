@@ -29,13 +29,13 @@ export const localTaskRepository = {
     return this.buildHierarchy(allTasks);
   },
 
-  async getById(id: string): Promise<TaskItem | null> {
+  async getById(id: string, includeDeleted = false): Promise<TaskItem | null> {
     const task = await sqliteClient.querySingle<TaskItem>(`
       SELECT id, list_id, workspace_id, parent_task_id, title, description,
              status, priority, due_date, position, created_by, created_at,
              updated_by, updated_at, version, is_deleted
       FROM tasks
-      WHERE id = ? AND is_deleted = 0;
+      WHERE id = ? ${includeDeleted ? '' : 'AND is_deleted = 0'};
     `, [id]);
 
     if (!task) return null;
@@ -74,7 +74,7 @@ export const localTaskRepository = {
   },
 
   async save(task: Partial<TaskItem> & { id?: string; list_id?: string | null; title: string }, isSync = false): Promise<TaskItem> {
-    const existing = task.id ? await this.getById(task.id) : null;
+    const existing = task.id ? await this.getById(task.id, true) : null;
     const now = new Date().toISOString();
     const id = task.id || crypto.randomUUID();
 
@@ -249,7 +249,21 @@ export const localTaskRepository = {
           id, list_id, workspace_id, parent_task_id, title, description,
           status, priority, due_date, position, created_by, created_at,
           updated_by, updated_at, version, is_deleted
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          list_id = excluded.list_id,
+          workspace_id = excluded.workspace_id,
+          parent_task_id = excluded.parent_task_id,
+          title = excluded.title,
+          description = excluded.description,
+          status = excluded.status,
+          priority = excluded.priority,
+          due_date = excluded.due_date,
+          position = excluded.position,
+          updated_by = excluded.updated_by,
+          updated_at = excluded.updated_at,
+          version = excluded.version,
+          is_deleted = excluded.is_deleted;
       `, [
         created.id, created.list_id, created.workspace_id, created.parent_task_id,
         created.title, created.description, created.status, created.priority,

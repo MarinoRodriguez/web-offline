@@ -13,17 +13,17 @@ export const localWorkspaceRepository = {
     `);
   },
 
-  async getById(id: string): Promise<Workspace | null> {
+  async getById(id: string, includeDeleted = false): Promise<Workspace | null> {
     return sqliteClient.querySingle<Workspace>(`
       SELECT id, name, description, owner_id, created_by, created_at, 
              updated_by, updated_at, version, is_deleted
       FROM workspaces
-      WHERE id = ? AND is_deleted = 0;
+      WHERE id = ? ${includeDeleted ? '' : 'AND is_deleted = 0'};
     `, [id]);
   },
 
   async save(ws: Partial<Workspace> & { id?: string; name: string }, isSync = false): Promise<Workspace> {
-    const existing = ws.id ? await this.getById(ws.id) : null;
+    const existing = ws.id ? await this.getById(ws.id, true) : null;
     const now = new Date().toISOString();
     const id = ws.id || crypto.randomUUID();
 
@@ -72,7 +72,15 @@ export const localWorkspaceRepository = {
 
       await sqliteClient.execute(`
         INSERT INTO workspaces (id, name, description, owner_id, created_by, created_at, updated_by, updated_at, version, is_deleted)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
+          description = excluded.description,
+          owner_id = excluded.owner_id,
+          updated_by = excluded.updated_by,
+          updated_at = excluded.updated_at,
+          version = excluded.version,
+          is_deleted = excluded.is_deleted;
       `, [
         created.id, created.name, created.description, created.owner_id,
         created.created_by, created.created_at, created.updated_by, created.updated_at,
