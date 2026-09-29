@@ -72,6 +72,20 @@ export const localListRepository = {
         is_deleted: 0
       };
 
+      if (created.workspace_id) {
+        const wsExists = await sqliteClient.querySingle<{ id: string }>(
+          'SELECT id FROM workspaces WHERE id = ?;',
+          [created.workspace_id]
+        );
+        if (!wsExists) {
+          await sqliteClient.execute(
+            `INSERT OR IGNORE INTO workspaces (id, name, owner_id, created_by, created_at, updated_at, version, is_deleted)
+             VALUES (?, 'Workspace', 'system', 'system', ?, ?, 1, 0);`,
+            [created.workspace_id, now, now]
+          );
+        }
+      }
+
       await sqliteClient.execute(`
         INSERT INTO lists (id, workspace_id, name, color, position, created_by, created_at, updated_by, updated_at, version, is_deleted)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);

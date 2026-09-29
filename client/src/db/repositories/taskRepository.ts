@@ -105,13 +105,55 @@ export const localTaskRepository = {
         is_deleted: task.is_deleted !== undefined ? task.is_deleted : existing.is_deleted
       };
 
+      // Sanitize list_id: verify referenced list exists locally, otherwise set null (tareas sin lista)
+      let validListId = updated.list_id || null;
+      if (validListId) {
+        const listExists = await sqliteClient.querySingle<{ id: string }>(
+          'SELECT id FROM lists WHERE id = ?;',
+          [validListId]
+        );
+        if (!listExists) {
+          validListId = null;
+        }
+      }
+
+      // Sanitize parent_task_id: verify parent task exists locally, otherwise set null
+      let validParentTaskId = updated.parent_task_id || null;
+      if (validParentTaskId) {
+        const parentExists = await sqliteClient.querySingle<{ id: string }>(
+          'SELECT id FROM tasks WHERE id = ?;',
+          [validParentTaskId]
+        );
+        if (!parentExists) {
+          validParentTaskId = null;
+        }
+      }
+
+      // Ensure workspace exists locally before updating task
+      if (updated.workspace_id) {
+        const wsExists = await sqliteClient.querySingle<{ id: string }>(
+          'SELECT id FROM workspaces WHERE id = ?;',
+          [updated.workspace_id]
+        );
+        if (!wsExists) {
+          await sqliteClient.execute(
+            `INSERT OR IGNORE INTO workspaces (id, name, owner_id, created_by, created_at, updated_at, version, is_deleted)
+             VALUES (?, 'Workspace', 'system', 'system', ?, ?, 1, 0);`,
+            [updated.workspace_id, now, now]
+          );
+        }
+      }
+
+      updated.list_id = validListId;
+      updated.parent_task_id = validParentTaskId;
+
       await sqliteClient.execute(`
         UPDATE tasks
         SET list_id = ?, workspace_id = ?, parent_task_id = ?, title = ?, description = ?,
             status = ?, priority = ?, due_date = ?, position = ?, updated_at = ?, version = ?, is_deleted = ?
         WHERE id = ?;
       `, [
-        updated.list_id || null, updated.workspace_id, updated.parent_task_id || null,
+        validListId, updated.workspace_id, validParentTaskId,
         updated.title, updated.description || null, updated.status, updated.priority,
         updated.due_date || null, updated.position, updated.updated_at, updated.version,
         updated.is_deleted, id
@@ -160,6 +202,48 @@ export const localTaskRepository = {
         is_deleted: 0
       };
 
+      // Sanitize list_id: verify referenced list exists locally, otherwise set null (tareas sin lista)
+      let validListId = created.list_id || null;
+      if (validListId) {
+        const listExists = await sqliteClient.querySingle<{ id: string }>(
+          'SELECT id FROM lists WHERE id = ?;',
+          [validListId]
+        );
+        if (!listExists) {
+          validListId = null;
+        }
+      }
+
+      // Sanitize parent_task_id: verify parent task exists locally, otherwise set null
+      let validParentTaskId = created.parent_task_id || null;
+      if (validParentTaskId) {
+        const parentExists = await sqliteClient.querySingle<{ id: string }>(
+          'SELECT id FROM tasks WHERE id = ?;',
+          [validParentTaskId]
+        );
+        if (!parentExists) {
+          validParentTaskId = null;
+        }
+      }
+
+      // Ensure workspace exists locally before inserting task
+      if (created.workspace_id) {
+        const wsExists = await sqliteClient.querySingle<{ id: string }>(
+          'SELECT id FROM workspaces WHERE id = ?;',
+          [created.workspace_id]
+        );
+        if (!wsExists) {
+          await sqliteClient.execute(
+            `INSERT OR IGNORE INTO workspaces (id, name, owner_id, created_by, created_at, updated_at, version, is_deleted)
+             VALUES (?, 'Workspace', 'system', 'system', ?, ?, 1, 0);`,
+            [created.workspace_id, now, now]
+          );
+        }
+      }
+
+      created.list_id = validListId;
+      created.parent_task_id = validParentTaskId;
+
       await sqliteClient.execute(`
         INSERT INTO tasks (
           id, list_id, workspace_id, parent_task_id, title, description,
@@ -167,7 +251,7 @@ export const localTaskRepository = {
           updated_by, updated_at, version, is_deleted
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
       `, [
-        created.id, created.list_id || null, created.workspace_id, created.parent_task_id,
+        created.id, created.list_id, created.workspace_id, created.parent_task_id,
         created.title, created.description, created.status, created.priority,
         created.due_date, created.position, created.created_by, created.created_at,
         created.updated_by, created.updated_at, created.version, created.is_deleted

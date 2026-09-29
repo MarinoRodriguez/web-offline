@@ -6,7 +6,8 @@ import {
   metaRepository, 
   localWorkspaceRepository, 
   localListRepository, 
-  localTaskRepository 
+  localTaskRepository,
+  sqliteClient
 } from '../db';
 
 export interface SyncBatchResponse {
@@ -149,82 +150,87 @@ class SyncEngine {
       const changes = syncData.changes;
       let pulledCount = 0;
 
-      // Workspaces
-      if (changes.workspaces && changes.workspaces.length > 0) {
-        for (const ws of changes.workspaces) {
-          await localWorkspaceRepository.save({
-            id: ws.id,
-            name: ws.name,
-            description: ws.description,
-            owner_id: ws.ownerId,
-            created_by: ws.createdBy,
-            created_at: ws.createdAt,
-            updated_by: ws.updatedBy,
-            updated_at: ws.updatedAt,
-            version: ws.version,
-            is_deleted: ws.isDeleted ? 1 : 0,
-          }, true);
-          pulledCount++;
-        }
-      }
-
-      // Lists
-      if (changes.lists && changes.lists.length > 0) {
-        for (const l of changes.lists) {
-          await localListRepository.save({
-            id: l.id,
-            workspace_id: l.workspaceId,
-            name: l.name,
-            color: l.color,
-            position: l.position,
-            created_by: l.createdBy,
-            created_at: l.createdAt,
-            updated_by: l.updatedBy,
-            updated_at: l.updatedAt,
-            version: l.version,
-            is_deleted: l.isDeleted ? 1 : 0,
-          }, true);
-          pulledCount++;
-        }
-      }
-
-      // Tasks
-      if (changes.tasks && changes.tasks.length > 0) {
-        for (const t of changes.tasks) {
-          await localTaskRepository.save({
-            id: t.id,
-            list_id: t.listId,
-            workspace_id: t.workspaceId,
-            parent_task_id: t.parentTaskId,
-            title: t.title,
-            description: t.description,
-            status: t.status,
-            priority: t.priority,
-            due_date: t.dueDate,
-            position: t.position,
-            created_by: t.createdBy,
-            created_at: t.createdAt,
-            updated_by: t.updatedBy,
-            updated_at: t.updatedAt,
-            version: t.version,
-            is_deleted: t.isDeleted ? 1 : 0,
-          }, true);
-          pulledCount++;
-        }
-      }
-
-      // Tombstones (Hard/Soft Deletions)
-      if (changes.tombstones && changes.tombstones.length > 0) {
-        for (const tomb of changes.tombstones) {
-          if (tomb.entityType === 'task') {
-            await localTaskRepository.delete(tomb.entityId, true);
-          } else if (tomb.entityType === 'list') {
-            await localListRepository.delete(tomb.entityId, true);
-          } else if (tomb.entityType === 'workspace') {
-            await localWorkspaceRepository.delete(tomb.entityId, true);
+      await sqliteClient.execute('PRAGMA foreign_keys = OFF;');
+      try {
+        // Workspaces
+        if (changes.workspaces && changes.workspaces.length > 0) {
+          for (const ws of changes.workspaces) {
+            await localWorkspaceRepository.save({
+              id: ws.id,
+              name: ws.name,
+              description: ws.description,
+              owner_id: ws.ownerId,
+              created_by: ws.createdBy,
+              created_at: ws.createdAt,
+              updated_by: ws.updatedBy,
+              updated_at: ws.updatedAt,
+              version: ws.version,
+              is_deleted: ws.isDeleted ? 1 : 0,
+            }, true);
+            pulledCount++;
           }
-          pulledCount++;
         }
+
+        // Lists
+        if (changes.lists && changes.lists.length > 0) {
+          for (const l of changes.lists) {
+            await localListRepository.save({
+              id: l.id,
+              workspace_id: l.workspaceId,
+              name: l.name,
+              color: l.color,
+              position: l.position,
+              created_by: l.createdBy,
+              created_at: l.createdAt,
+              updated_by: l.updatedBy,
+              updated_at: l.updatedAt,
+              version: l.version,
+              is_deleted: l.isDeleted ? 1 : 0,
+            }, true);
+            pulledCount++;
+          }
+        }
+
+        // Tasks
+        if (changes.tasks && changes.tasks.length > 0) {
+          for (const t of changes.tasks) {
+            await localTaskRepository.save({
+              id: t.id,
+              list_id: t.listId,
+              workspace_id: t.workspaceId,
+              parent_task_id: t.parentTaskId,
+              title: t.title,
+              description: t.description,
+              status: t.status,
+              priority: t.priority,
+              due_date: t.dueDate,
+              position: t.position,
+              created_by: t.createdBy,
+              created_at: t.createdAt,
+              updated_by: t.updatedBy,
+              updated_at: t.updatedAt,
+              version: t.version,
+              is_deleted: t.isDeleted ? 1 : 0,
+            }, true);
+            pulledCount++;
+          }
+        }
+
+        // Tombstones (Hard/Soft Deletions)
+        if (changes.tombstones && changes.tombstones.length > 0) {
+          for (const tomb of changes.tombstones) {
+            if (tomb.entityType === 'task') {
+              await localTaskRepository.delete(tomb.entityId, true);
+            } else if (tomb.entityType === 'list') {
+              await localListRepository.delete(tomb.entityId, true);
+            } else if (tomb.entityType === 'workspace') {
+              await localWorkspaceRepository.delete(tomb.entityId, true);
+            }
+            pulledCount++;
+          }
+        }
+      } finally {
+        await sqliteClient.execute('PRAGMA foreign_keys = ON;');
       }
 
       // 6. Persist new last_synced_at UTC timestamp
