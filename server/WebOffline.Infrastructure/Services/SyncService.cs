@@ -93,6 +93,93 @@ public class SyncService : ISyncService
         var pullResult = await FetchChangesAsync(request.LastSyncedAt, request.WorkspaceId, currentUserId, isSystemAdmin);
         response.Changes = pullResult;
 
+        // 3. For any mutation rejected due to 409 Conflict, guarantee that the server's current authoritative
+        // version is explicitly provided in response.Changes so the client immediately synchronizes it out of limbo.
+        var conflictRejections = response.Rejections.Where(r => r.StatusCode == 409).ToList();
+        foreach (var conflict in conflictRejections)
+        {
+            var entityType = conflict.Entity?.ToLowerInvariant();
+            switch (entityType)
+            {
+                case "workspace":
+                    if (!response.Changes.Workspaces.Any(w => w.Id == conflict.EntityId))
+                    {
+                        var ws = await _workspaceRepository.GetByIdAsync(conflict.EntityId);
+                        if (ws != null)
+                        {
+                            response.Changes.Workspaces.Add(new WorkspaceDto
+                            {
+                                Id = ws.Id,
+                                Name = ws.Name,
+                                Description = ws.Description,
+                                OwnerId = ws.OwnerId,
+                                RoleInWorkspace = ws.OwnerId == currentUserId ? "Owner" : "Editor",
+                                CreatedBy = ws.CreatedBy,
+                                CreatedAt = ws.CreatedAt,
+                                UpdatedBy = ws.UpdatedBy,
+                                UpdatedAt = ws.UpdatedAt,
+                                Version = ws.Version,
+                                IsDeleted = ws.IsDeleted
+                            });
+                        }
+                    }
+                    break;
+
+                case "list":
+                    if (!response.Changes.Lists.Any(l => l.Id == conflict.EntityId))
+                    {
+                        var list = await _listRepository.GetByIdAsync(conflict.EntityId);
+                        if (list != null)
+                        {
+                            response.Changes.Lists.Add(new ListDto
+                            {
+                                Id = list.Id,
+                                WorkspaceId = list.WorkspaceId,
+                                Name = list.Name,
+                                Color = list.Color,
+                                Position = list.Position,
+                                CreatedBy = list.CreatedBy,
+                                CreatedAt = list.CreatedAt,
+                                UpdatedBy = list.UpdatedBy,
+                                UpdatedAt = list.UpdatedAt,
+                                Version = list.Version,
+                                IsDeleted = list.IsDeleted
+                            });
+                        }
+                    }
+                    break;
+
+                case "task":
+                    if (!response.Changes.Tasks.Any(t => t.Id == conflict.EntityId))
+                    {
+                        var task = await _taskRepository.GetByIdAsync(conflict.EntityId);
+                        if (task != null)
+                        {
+                            response.Changes.Tasks.Add(new TaskDto
+                            {
+                                Id = task.Id,
+                                ListId = task.ListId,
+                                WorkspaceId = task.WorkspaceId,
+                                ParentTaskId = task.ParentTaskId,
+                                Title = task.Title,
+                                Description = task.Description,
+                                Status = task.Status,
+                                Priority = task.Priority,
+                                DueDate = task.DueDate,
+                                Position = task.Position,
+                                CreatedBy = task.CreatedBy,
+                                CreatedAt = task.CreatedAt,
+                                UpdatedBy = task.UpdatedBy,
+                                UpdatedAt = task.UpdatedAt,
+                                Version = task.Version,
+                                IsDeleted = task.IsDeleted
+                            });
+                        }
+                    }
+                    break;
+            }
+        }
+
         return ApiResponse<SyncBatchResponse>.Ok(response, "Sync batch executed successfully.");
     }
 
