@@ -122,7 +122,7 @@ export const NewTaskModal: React.FC<Props> = ({ onTaskCreated }) => {
                 onChange={(e) => setSelectedListId(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm focus:outline-none focus:border-blue-500 transition"
               >
-                <option value="">(Sin lista / Bandeja de entrada)</option>
+                <option value="">(Tareas sin lista)</option>
                 {availableLists.map((l) => (
                   <option key={l.id} value={l.id}>{l.name}</option>
                 ))}

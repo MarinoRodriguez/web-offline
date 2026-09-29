@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, Link, useOutletContext } from 'react-router-dom';
 import { 
   localWorkspaceRepository, localListRepository, localTaskRepository,
-  Workspace, TaskList, TaskItem 
+  Workspace, TaskList, TaskItem, sqliteClient 
 } from '../db';
 import { useUrlParams } from '../hooks/useUrlParams';
 import { 
@@ -55,6 +55,24 @@ export const WorkspaceDetailPage: React.FC = () => {
         localListRepository.getByWorkspace(workspaceId),
         localTaskRepository.getByWorkspace(workspaceId)
       ]);
+      // Consolidate any tasks that were assigned to dummy list "Tareas sin lista" into unassigned tasks (list_id: null)
+      const dummyList = listData.find(l => l.name.trim().toLowerCase() === 'tareas sin lista');
+      if (dummyList) {
+        await sqliteClient.execute(
+          'UPDATE tasks SET list_id = NULL, updated_at = ? WHERE list_id = ?;',
+          [new Date().toISOString(), dummyList.id]
+        );
+        await localListRepository.delete(dummyList.id);
+        const [refreshedLists, refreshedTasks] = await Promise.all([
+          localListRepository.getByWorkspace(workspaceId),
+          localTaskRepository.getByWorkspace(workspaceId)
+        ]);
+        setWorkspace(ws);
+        setLists(refreshedLists);
+        setTasks(refreshedTasks);
+        return;
+      }
+
       setWorkspace(ws);
       setLists(listData);
       setTasks(taskData);
@@ -273,7 +291,7 @@ export const WorkspaceDetailPage: React.FC = () => {
             className="px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 text-xs focus:outline-none focus:border-blue-500 transition"
           >
             <option value="">Todas las listas</option>
-            <option value="__unassigned__">Sin lista (Inbox)</option>
+            <option value="__unassigned__">Tareas sin lista</option>
             {lists.map((l) => (
               <option key={l.id} value={l.id}>{l.name}</option>
             ))}
@@ -343,7 +361,7 @@ export const WorkspaceDetailPage: React.FC = () => {
               <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
                 <div className="flex items-center gap-2 truncate">
                   <span className="w-3 h-3 rounded-full bg-slate-500" />
-                  <h3 className="text-sm font-semibold text-white truncate">Bandeja de Entrada</h3>
+                  <h3 className="text-sm font-semibold text-white truncate">Tareas sin lista</h3>
                   <span className="text-xs font-mono text-slate-500 px-1.5 py-0.2 rounded-full bg-slate-950">
                     {unassignedTasks.length}
                   </span>
@@ -352,7 +370,7 @@ export const WorkspaceDetailPage: React.FC = () => {
                 <button
                   onClick={() => openModal('new-task', { workspaceId, listId: '' })}
                   className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                  title="Añadir tarea a la bandeja de entrada"
+                  title="Añadir a tareas sin lista"
                 >
                   <Plus className="w-4 h-4" />
                 </button>
@@ -361,7 +379,7 @@ export const WorkspaceDetailPage: React.FC = () => {
               <div className="overflow-y-auto space-y-3 flex-1 pr-1">
                 {unassignedTasks.length === 0 ? (
                   <div className="p-6 text-center text-slate-600 text-xs italic">
-                    Sin tareas en la bandeja
+                    Sin tareas
                   </div>
                 ) : (
                   unassignedTasks.map(renderTaskCard)
@@ -457,7 +475,7 @@ export const WorkspaceDetailPage: React.FC = () => {
                       ) : (
                         <span className="text-slate-500 italic flex items-center gap-1">
                           <span className="w-2 h-2 rounded-full bg-slate-600" />
-                          Sin lista (Inbox)
+                          Tareas sin lista
                         </span>
                       )}
                     </td>

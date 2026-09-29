@@ -110,6 +110,16 @@ async function initializeDatabase(): Promise<void> {
           PRAGMA foreign_keys = ON;
         `);
       }
+
+      // Consolidate any tasks assigned to dummy list "Tareas sin lista" to list_id = NULL
+      try {
+        db.exec(`
+          UPDATE tasks SET list_id = NULL WHERE list_id IN (SELECT id FROM lists WHERE LOWER(TRIM(name)) = 'tareas sin lista');
+          DELETE FROM lists WHERE LOWER(TRIM(name)) = 'tareas sin lista';
+        `);
+      } catch (cleanErr) {
+        console.warn('[SQLite Worker] Cleanup dummy list note:', cleanErr);
+      }
     } catch (migErr) {
       console.warn('[SQLite Worker] Migration check note:', migErr);
     }

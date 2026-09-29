@@ -85,9 +85,7 @@ export const CsvImportModal: React.FC<Props> = ({ onImportCompleted }) => {
           imported++;
         }
       } else if (selectedEntity === 'tasks') {
-        let lists = await localListRepository.getByWorkspace(workspaceId);
-        const SYSTEM_LIST_NAME = 'Tareas sin lista';
-        let systemList = lists.find(l => l.name.trim().toLowerCase() === SYSTEM_LIST_NAME.toLowerCase());
+        const lists = await localListRepository.getByWorkspace(workspaceId);
 
         for (const row of parsedData) {
           if (!row.title?.trim()) continue;
@@ -114,19 +112,7 @@ export const CsvImportModal: React.FC<Props> = ({ onImportCompleted }) => {
             }
           }
 
-          // If no list was specified or not found, route to system list "Tareas sin lista"
-          if (!targetListId) {
-            if (!systemList) {
-              systemList = await localListRepository.save({
-                workspace_id: workspaceId,
-                name: SYSTEM_LIST_NAME,
-                color: '#64748B',
-                position: 0
-              });
-              lists = [...lists, systemList];
-            }
-            targetListId = systemList.id;
-          }
+          // If no list was specified or not found, targetListId remains null (assigns to "Tareas sin lista")
 
           const rawStatus = row.status?.trim().toUpperCase();
           const validStatuses = ['TODO', 'IN_PROGRESS', 'DONE', 'CANCELLED'];
@@ -254,7 +240,7 @@ export const CsvImportModal: React.FC<Props> = ({ onImportCompleted }) => {
             <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-slate-400">
               <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0" />
               <span>
-                Las tareas que no indiquen una columna de lista (o cuyo código no exista) se asignarán automáticamente a la lista del sistema <strong className="text-slate-200">"Tareas sin lista"</strong>.
+                Las tareas que no indiquen una columna de lista (o cuyo código no exista) se importarán como <strong className="text-slate-200">"Tareas sin lista"</strong>.
               </span>
             </div>
           )}
