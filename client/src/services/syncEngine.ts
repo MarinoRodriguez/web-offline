@@ -112,19 +112,37 @@ class SyncEngine {
       const rejections = syncData.rejections || [];
       const rejectedMutationIds = new Set(rejections.map((r) => r.mutationId));
 
-      // 3. Remove successfully applied mutations from local outbox
+      // 3. Remove applied mutations AND resolved conflict/terminal rejections from local outbox
+      // In Last-Write-Wins, when a 409 Conflict occurs, the server version is authoritative
+      // and pulled down in step 5; the superseded local mutation is purged so it doesn't block the queue.
       const appliedMutationIds = pendingMutations
         .map((m) => m.id)
         .filter((id) => !rejectedMutationIds.has(id));
 
-      if (appliedMutationIds.length > 0) {
-        await outboxRepository.removeMutations(appliedMutationIds);
+      const terminalRejectionIds = new Set(
+        rejections
+          .filter(r => r.statusCode >= 400 && r.statusCode < 500)
+          .map(r => r.mutationId)
+      );
+
+      const mutationsToRemove = pendingMutations
+        .map((m) => m.id)
+        .filter((id) => !rejectedMutationIds.has(id) || terminalRejectionIds.has(id));
+
+      if (mutationsToRemove.length > 0) {
+        await outboxRepository.removeMutations(mutationsToRemove);
       }
 
-      // 4. Handle rejections (log & flag in outbox)
+      // 4. Handle rejections (log & flag)
       for (const rej of rejections) {
-        console.warn(`[SyncEngine] Mutation ${rej.mutationId} rejected (${rej.statusCode}): ${rej.reason}`);
-        await outboxRepository.markFailed(rej.mutationId, `[${rej.statusCode}] ${rej.reason}`);
+        if (rej.statusCode === 409) {
+          console.warn(`[SyncEngine] Conflict resolved (Server-Wins): Mutation ${rej.mutationId} on ${rej.entity} (${rej.entityId}) was superseded by the newer server version.`);
+        } else {
+          console.warn(`[SyncEngine] Mutation ${rej.mutationId} rejected (${rej.statusCode}): ${rej.reason}`);
+          if (!terminalRejectionIds.has(rej.mutationId)) {
+            await outboxRepository.markFailed(rej.mutationId, `[${rej.statusCode}] ${rej.reason}`);
+          }
+        }
       }
 
       // 5. Apply Pulled Changes into Local SQLite (with isSync = true to prevent echo in outbox)

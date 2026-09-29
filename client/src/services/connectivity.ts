@@ -47,7 +47,7 @@ class ConnectivityService {
       statusText = 'Sin red local/internet';
     } else if (!this.isServerReachable) {
       status = 'server_unreachable';
-      statusText = 'Servidor Offline (502 / Caído)';
+      statusText = 'Servidor Offline';
     }
 
     return {

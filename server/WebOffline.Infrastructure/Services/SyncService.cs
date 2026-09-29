@@ -195,8 +195,8 @@ public class SyncService : ISyncService
                     return ApiResponse.Fail("Workspace not found.", 404);
                 }
 
-                // Conflict check (Last-Write-Wins)
-                if (existing.UpdatedAt.ToUniversalTime() > mutation.ClientTimestamp.ToUniversalTime())
+                // Conflict check (Last-Write-Wins with clock skew tolerance)
+                if (existing.UpdatedAt.ToUniversalTime() > mutation.ClientTimestamp.ToUniversalTime().AddSeconds(2))
                 {
                     return ApiResponse.Fail("Conflict: Server has a more recent version of this workspace.", 409);
                 }
@@ -342,8 +342,8 @@ public class SyncService : ISyncService
                     return ApiResponse.Fail("Access denied to update list.", 403);
                 }
 
-                // Conflict check
-                if (existing.UpdatedAt.ToUniversalTime() > mutation.ClientTimestamp.ToUniversalTime())
+                // Conflict check (Last-Write-Wins with clock skew tolerance)
+                if (existing.UpdatedAt.ToUniversalTime() > mutation.ClientTimestamp.ToUniversalTime().AddSeconds(2))
                 {
                     return ApiResponse.Fail("Conflict: Server has a more recent version of this list.", 409);
                 }
@@ -523,8 +523,8 @@ public class SyncService : ISyncService
                     }
                 }
 
-                // Conflict check
-                if (existing.UpdatedAt.ToUniversalTime() > mutation.ClientTimestamp.ToUniversalTime())
+                // Conflict check (Last-Write-Wins with clock skew tolerance)
+                if (existing.UpdatedAt.ToUniversalTime() > mutation.ClientTimestamp.ToUniversalTime().AddSeconds(2))
                 {
                     return ApiResponse.Fail("Conflict: Server has a more recent version of this task.", 409);
                 }

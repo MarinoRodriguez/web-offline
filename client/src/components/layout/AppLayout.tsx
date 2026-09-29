@@ -152,7 +152,7 @@ export const AppLayout: React.FC = () => {
               <>
                 <span className="w-2 h-2 rounded-full bg-amber-400" />
                 <WifiOff className="w-3.5 h-3.5" />
-                <span>Servidor Offline</span>
+                <span>Offline</span>
               </>
             ) : (
               <>
