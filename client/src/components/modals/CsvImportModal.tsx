@@ -23,7 +23,7 @@ export const CsvImportModal: React.FC<Props> = ({ onImportCompleted }) => {
 
   const sampleCsvs: Record<EntityType, string> = {
     lists: `name,color,position\n"Sprint Backlog","#3B82F6",1\n"En Curso","#F59E0B",2\n"Terminado","#10B981",3`,
-    tasks: `title,description,status,priority,due_date\n"Diseñar Wireframes","Bocetos de interfaz","TODO","HIGH","2026-10-15"\n"Revisar accesibilidad","Contraste y navegación","IN_PROGRESS","MEDIUM","2026-10-20"`
+    tasks: `title,description,status,priority,due_date,list_name\n"Diseñar Wireframes","Bocetos de interfaz","TODO","HIGH","2026-10-15",""\n"Revisar accesibilidad","Contraste y navegación","IN_PROGRESS","MEDIUM","2026-10-20","Sprint Backlog"`
   };
 
   const handleDownloadTemplate = () => {
@@ -85,18 +85,63 @@ export const CsvImportModal: React.FC<Props> = ({ onImportCompleted }) => {
           imported++;
         }
       } else if (selectedEntity === 'tasks') {
-        const lists = await localListRepository.getByWorkspace(workspaceId);
-        const defaultListId = lists[0]?.id || null;
+        let lists = await localListRepository.getByWorkspace(workspaceId);
+        const SYSTEM_LIST_NAME = 'Tareas sin lista';
+        let systemList = lists.find(l => l.name.trim().toLowerCase() === SYSTEM_LIST_NAME.toLowerCase());
 
         for (const row of parsedData) {
           if (!row.title?.trim()) continue;
+
+          // Determine target list: check list_id, list_code, list_name, list, or lista
+          const specifiedList = (
+            row.list_id || 
+            row.list_code || 
+            row.list_name || 
+            row.list || 
+            row.lista || 
+            ''
+          ).trim();
+
+          let targetListId: string | null = null;
+
+          if (specifiedList) {
+            const matched = lists.find(l => 
+              l.id.toLowerCase() === specifiedList.toLowerCase() ||
+              l.name.toLowerCase() === specifiedList.toLowerCase()
+            );
+            if (matched) {
+              targetListId = matched.id;
+            }
+          }
+
+          // If no list was specified or not found, route to system list "Tareas sin lista"
+          if (!targetListId) {
+            if (!systemList) {
+              systemList = await localListRepository.save({
+                workspace_id: workspaceId,
+                name: SYSTEM_LIST_NAME,
+                color: '#64748B',
+                position: 0
+              });
+              lists = [...lists, systemList];
+            }
+            targetListId = systemList.id;
+          }
+
+          const rawStatus = row.status?.trim().toUpperCase();
+          const validStatuses = ['TODO', 'IN_PROGRESS', 'DONE', 'CANCELLED'];
+          const status = validStatuses.includes(rawStatus) ? rawStatus : 'TODO';
+
+          const rawPriority = row.priority?.trim().toUpperCase();
+          const priority = rawPriority === 'CRITICAL' ? 'URGENT' : (['LOW', 'MEDIUM', 'HIGH', 'URGENT'].includes(rawPriority) ? rawPriority : 'MEDIUM');
+
           await localTaskRepository.save({
-            list_id: defaultListId,
+            list_id: targetListId,
             workspace_id: workspaceId,
             title: row.title.trim(),
             description: row.description?.trim() || null,
-            status: (['TODO', 'IN_PROGRESS', 'DONE', 'CANCELLED'].includes(row.status?.toUpperCase()) ? row.status.toUpperCase() : 'TODO') as any,
-            priority: (['LOW', 'MEDIUM', 'HIGH', 'URGENT'].includes(row.priority?.toUpperCase()) ? row.priority.toUpperCase() : 'MEDIUM') as any,
+            status: status as any,
+            priority: priority as any,
             due_date: row.due_date ? new Date(row.due_date).toISOString() : null
           });
           imported++;
@@ -203,6 +248,16 @@ export const CsvImportModal: React.FC<Props> = ({ onImportCompleted }) => {
               </label>
             </div>
           </div>
+
+          {/* Note for Tasks without List */}
+          {selectedEntity === 'tasks' && (
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-slate-400">
+              <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0" />
+              <span>
+                Las tareas que no indiquen una columna de lista (o cuyo código no exista) se asignarán automáticamente a la lista del sistema <strong className="text-slate-200">"Tareas sin lista"</strong>.
+              </span>
+            </div>
+          )}
 
           {/* Feedback messages */}
           {errors.length > 0 && (
