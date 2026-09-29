@@ -35,7 +35,7 @@ export interface TaskList {
 
 export interface TaskItem {
   id: string;
-  list_id: string;
+  list_id?: string | null;
   workspace_id: string;
   parent_task_id?: string | null;
   title: string;
@@ -114,7 +114,7 @@ export const INITIAL_SCHEMA_SQL = `
 
   CREATE TABLE IF NOT EXISTS tasks (
     id TEXT PRIMARY KEY,
-    list_id TEXT NOT NULL,
+    list_id TEXT,
     workspace_id TEXT NOT NULL,
     parent_task_id TEXT,
     title TEXT NOT NULL,
@@ -129,7 +129,7 @@ export const INITIAL_SCHEMA_SQL = `
     updated_at TEXT NOT NULL,
     version INTEGER NOT NULL DEFAULT 1,
     is_deleted INTEGER NOT NULL DEFAULT 0,
-    FOREIGN KEY (list_id) REFERENCES lists(id) ON DELETE CASCADE,
+    FOREIGN KEY (list_id) REFERENCES lists(id) ON DELETE SET NULL,
     FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
     FOREIGN KEY (parent_task_id) REFERENCES tasks(id) ON DELETE CASCADE
   );

@@ -427,19 +427,27 @@ public class SyncService : ISyncService
         {
             case "INSERT":
             {
-                var listId = payload?.ListId;
-                if (string.IsNullOrWhiteSpace(listId))
+                var listId = string.IsNullOrWhiteSpace(payload?.ListId) ? null : payload.ListId.Trim();
+                string workspaceId;
+
+                if (listId != null)
                 {
-                    return ApiResponse.Fail("ListId is required for Task insertion.", 400);
+                    var list = await _listRepository.GetByIdAsync(listId);
+                    if (list == null)
+                    {
+                        return ApiResponse.Fail("Parent list not found on server.", 404);
+                    }
+                    workspaceId = mutation.WorkspaceId ?? payload?.WorkspaceId ?? list.WorkspaceId;
+                }
+                else
+                {
+                    workspaceId = mutation.WorkspaceId ?? payload?.WorkspaceId ?? string.Empty;
+                    if (string.IsNullOrWhiteSpace(workspaceId))
+                    {
+                        return ApiResponse.Fail("WorkspaceId is required for Task insertion when no ListId is specified.", 400);
+                    }
                 }
 
-                var list = await _listRepository.GetByIdAsync(listId);
-                if (list == null)
-                {
-                    return ApiResponse.Fail("Parent list not found on server.", 404);
-                }
-
-                var workspaceId = mutation.WorkspaceId ?? payload?.WorkspaceId ?? list.WorkspaceId;
                 var canWrite = await _abacEvaluator.CanAccessWorkspaceAsync(currentUserId, workspaceId, ResourceAction.Write, isSystemAdmin);
                 if (!canWrite)
                 {
@@ -528,7 +536,7 @@ public class SyncService : ISyncService
                 if (!string.IsNullOrWhiteSpace(payload?.Priority)) existing.Priority = payload.Priority.ToUpperInvariant();
                 if (payload?.DueDate.HasValue == true) existing.DueDate = payload.DueDate;
                 if (payload?.Position.HasValue == true) existing.Position = payload.Position.Value;
-                if (!string.IsNullOrWhiteSpace(payload?.ListId)) existing.ListId = payload.ListId;
+                if (payload != null && payload.ListId != null) existing.ListId = string.IsNullOrWhiteSpace(payload.ListId) ? null : payload.ListId.Trim();
 
                 existing.UpdatedBy = currentUserId;
                 existing.UpdatedAt = DateTime.UtcNow;

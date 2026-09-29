@@ -78,18 +78,31 @@ public class TaskService : ITaskService
 
     public async Task<ApiResponse<TaskDto>> CreateTaskAsync(CreateTaskRequest request, string currentUserId, string currentUserEmail, bool isSystemAdmin)
     {
-        if (string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.ListId))
+        if (string.IsNullOrWhiteSpace(request.Title))
         {
-            return ApiResponse<TaskDto>.Fail("Title and ListId are required.", 400);
+            return ApiResponse<TaskDto>.Fail("Title is required.", 400);
         }
 
-        var list = await _listRepository.GetByIdAsync(request.ListId);
-        if (list == null)
-        {
-            return ApiResponse<TaskDto>.Fail("Parent list not found.", 404);
-        }
+        string workspaceId;
+        string? listId = string.IsNullOrWhiteSpace(request.ListId) ? null : request.ListId.Trim();
 
-        var workspaceId = string.IsNullOrWhiteSpace(request.WorkspaceId) ? list.WorkspaceId : request.WorkspaceId;
+        if (listId != null)
+        {
+            var list = await _listRepository.GetByIdAsync(listId);
+            if (list == null)
+            {
+                return ApiResponse<TaskDto>.Fail("Parent list not found.", 404);
+            }
+            workspaceId = string.IsNullOrWhiteSpace(request.WorkspaceId) ? list.WorkspaceId : request.WorkspaceId;
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(request.WorkspaceId))
+            {
+                return ApiResponse<TaskDto>.Fail("WorkspaceId is required when creating a task without a list.", 400);
+            }
+            workspaceId = request.WorkspaceId;
+        }
 
         var canWrite = await _abacEvaluator.CanAccessWorkspaceAsync(currentUserId, workspaceId, ResourceAction.Write, isSystemAdmin);
         if (!canWrite)
@@ -109,7 +122,7 @@ public class TaskService : ITaskService
         var task = new TaskItem
         {
             Id = Guid.NewGuid().ToString(),
-            ListId = request.ListId,
+            ListId = listId,
             WorkspaceId = workspaceId,
             ParentTaskId = request.ParentTaskId,
             Title = request.Title.Trim(),
@@ -198,6 +211,7 @@ public class TaskService : ITaskService
         task.Priority = request.Priority?.ToUpperInvariant() ?? task.Priority;
         task.DueDate = request.DueDate;
         task.Position = request.Position;
+        if (request.ListId != null) task.ListId = string.IsNullOrWhiteSpace(request.ListId) ? null : request.ListId.Trim();
         task.UpdatedBy = currentUserId;
         task.UpdatedAt = DateTime.UtcNow;
 

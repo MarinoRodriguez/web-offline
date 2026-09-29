@@ -100,7 +100,7 @@ public class DbInitializer
 
             CREATE TABLE IF NOT EXISTS tasks (
                 id TEXT PRIMARY KEY,
-                list_id TEXT NOT NULL,
+                list_id TEXT,
                 workspace_id TEXT NOT NULL,
                 parent_task_id TEXT,
                 title TEXT NOT NULL,
@@ -115,7 +115,7 @@ public class DbInitializer
                 updated_at TEXT NOT NULL,
                 version INTEGER NOT NULL DEFAULT 1,
                 is_deleted INTEGER NOT NULL DEFAULT 0,
-                FOREIGN KEY (list_id) REFERENCES lists(id) ON DELETE CASCADE,
+                FOREIGN KEY (list_id) REFERENCES lists(id) ON DELETE SET NULL,
                 FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
                 FOREIGN KEY (parent_task_id) REFERENCES tasks(id) ON DELETE CASCADE,
                 FOREIGN KEY (created_by) REFERENCES users(id)
@@ -146,6 +146,42 @@ public class DbInitializer
         ";
 
         await connection.ExecuteAsync(sql);
+
+        // Migration check: Ensure list_id is nullable in tasks table
+        var tableInfo = await connection.QueryAsync("PRAGMA table_info(tasks);");
+        var listIdColumn = tableInfo.FirstOrDefault(c => (string)c.name == "list_id");
+        if (listIdColumn != null && (long)listIdColumn.notnull == 1)
+        {
+            await connection.ExecuteAsync(@"
+                PRAGMA foreign_keys = OFF;
+                ALTER TABLE tasks RENAME TO _tasks_old;
+                CREATE TABLE tasks (
+                    id TEXT PRIMARY KEY,
+                    list_id TEXT,
+                    workspace_id TEXT NOT NULL,
+                    parent_task_id TEXT,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    status TEXT NOT NULL DEFAULT 'TODO',
+                    priority TEXT NOT NULL DEFAULT 'MEDIUM',
+                    due_date TEXT,
+                    position INTEGER NOT NULL DEFAULT 0,
+                    created_by TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_by TEXT,
+                    updated_at TEXT NOT NULL,
+                    version INTEGER NOT NULL DEFAULT 1,
+                    is_deleted INTEGER NOT NULL DEFAULT 0,
+                    FOREIGN KEY (list_id) REFERENCES lists(id) ON DELETE SET NULL,
+                    FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+                    FOREIGN KEY (parent_task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+                    FOREIGN KEY (created_by) REFERENCES users(id)
+                );
+                INSERT INTO tasks SELECT * FROM _tasks_old;
+                DROP TABLE _tasks_old;
+                PRAGMA foreign_keys = ON;
+            ");
+        }
 
         // Seed initial admin if none exists
         var adminCount = await connection.ExecuteScalarAsync<int>(

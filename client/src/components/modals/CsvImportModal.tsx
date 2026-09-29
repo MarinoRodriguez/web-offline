@@ -86,13 +86,7 @@ export const CsvImportModal: React.FC<Props> = ({ onImportCompleted }) => {
         }
       } else if (selectedEntity === 'tasks') {
         const lists = await localListRepository.getByWorkspace(workspaceId);
-        const defaultListId = lists[0]?.id;
-
-        if (!defaultListId) {
-          setErrors(['No existen listas en este workspace. Crea al menos una lista antes de importar tareas.']);
-          setImporting(false);
-          return;
-        }
+        const defaultListId = lists[0]?.id || null;
 
         for (const row of parsedData) {
           if (!row.title?.trim()) continue;

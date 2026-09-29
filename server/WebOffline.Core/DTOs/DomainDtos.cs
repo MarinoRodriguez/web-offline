@@ -144,7 +144,7 @@ public class ListDto
 
 public class CreateTaskRequest
 {
-    public string ListId { get; set; } = string.Empty;
+    public string? ListId { get; set; }
     public string WorkspaceId { get; set; } = string.Empty;
     public string? ParentTaskId { get; set; }
     public string Title { get; set; } = string.Empty;
@@ -156,6 +156,7 @@ public class CreateTaskRequest
 
 public class UpdateTaskRequest
 {
+    public string? ListId { get; set; }
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string Status { get; set; } = "TODO";
@@ -172,7 +173,7 @@ public class UpdateTaskStatusRequest
 public class TaskDto
 {
     public string Id { get; set; } = string.Empty;
-    public string ListId { get; set; } = string.Empty;
+    public string? ListId { get; set; }
     public string WorkspaceId { get; set; } = string.Empty;
     public string? ParentTaskId { get; set; }
     public string Title { get; set; } = string.Empty;

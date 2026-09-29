@@ -40,6 +40,50 @@ async function initializeDatabase(): Promise<void> {
 
     // Execute Initial Schema
     db.exec(INITIAL_SCHEMA_SQL);
+
+    // Migration: Ensure tasks.list_id is nullable
+    try {
+      const tableInfo: any[] = [];
+      db.exec({
+        sql: "PRAGMA table_info(tasks);",
+        rowMode: 'object',
+        resultRows: tableInfo
+      });
+      const listIdCol = tableInfo.find((c: any) => c.name === 'list_id');
+      if (listIdCol && Number(listIdCol.notnull) === 1) {
+        db.exec(`
+          PRAGMA foreign_keys = OFF;
+          ALTER TABLE tasks RENAME TO _tasks_old;
+          CREATE TABLE tasks (
+            id TEXT PRIMARY KEY,
+            list_id TEXT,
+            workspace_id TEXT NOT NULL,
+            parent_task_id TEXT,
+            title TEXT NOT NULL,
+            description TEXT,
+            status TEXT NOT NULL DEFAULT 'TODO',
+            priority TEXT NOT NULL DEFAULT 'MEDIUM',
+            due_date TEXT,
+            position INTEGER NOT NULL DEFAULT 0,
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_by TEXT,
+            updated_at TEXT NOT NULL,
+            version INTEGER NOT NULL DEFAULT 1,
+            is_deleted INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (list_id) REFERENCES lists(id) ON DELETE SET NULL,
+            FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+            FOREIGN KEY (parent_task_id) REFERENCES tasks(id) ON DELETE CASCADE
+          );
+          INSERT INTO tasks SELECT * FROM _tasks_old;
+          DROP TABLE _tasks_old;
+          PRAGMA foreign_keys = ON;
+        `);
+      }
+    } catch (migErr) {
+      console.warn('[SQLite Worker] Migration check note:', migErr);
+    }
+
     isInitialized = true;
     console.info(`[SQLite Worker] Database initialized successfully using ${storageType}`);
   } catch (err: any) {

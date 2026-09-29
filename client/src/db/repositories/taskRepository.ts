@@ -73,7 +73,7 @@ export const localTaskRepository = {
     `, [parentTaskId]);
   },
 
-  async save(task: Partial<TaskItem> & { id?: string; list_id: string; title: string }, isSync = false): Promise<TaskItem> {
+  async save(task: Partial<TaskItem> & { id?: string; list_id?: string | null; title: string }, isSync = false): Promise<TaskItem> {
     const existing = task.id ? await this.getById(task.id) : null;
     const now = new Date().toISOString();
     const id = task.id || crypto.randomUUID();
@@ -91,7 +91,7 @@ export const localTaskRepository = {
 
       const updated: TaskItem = {
         ...existing,
-        list_id: task.list_id || existing.list_id,
+        list_id: task.list_id !== undefined ? task.list_id : existing.list_id,
         workspace_id: task.workspace_id || existing.workspace_id,
         parent_task_id: task.parent_task_id !== undefined ? task.parent_task_id : existing.parent_task_id,
         title: task.title.trim(),
@@ -111,7 +111,7 @@ export const localTaskRepository = {
             status = ?, priority = ?, due_date = ?, position = ?, updated_at = ?, version = ?, is_deleted = ?
         WHERE id = ?;
       `, [
-        updated.list_id, updated.workspace_id, updated.parent_task_id || null,
+        updated.list_id || null, updated.workspace_id, updated.parent_task_id || null,
         updated.title, updated.description || null, updated.status, updated.priority,
         updated.due_date || null, updated.position, updated.updated_at, updated.version,
         updated.is_deleted, id
@@ -126,7 +126,7 @@ export const localTaskRepository = {
           client_timestamp: now,
           version: updated.version,
           payload_json: JSON.stringify({
-            listId: updated.list_id,
+            listId: updated.list_id || null,
             workspaceId: updated.workspace_id,
             parentTaskId: updated.parent_task_id,
             title: updated.title,
@@ -143,7 +143,7 @@ export const localTaskRepository = {
     } else {
       const created: TaskItem = {
         id,
-        list_id: task.list_id,
+        list_id: task.list_id || null,
         workspace_id: task.workspace_id || '',
         parent_task_id: task.parent_task_id || null,
         title: task.title.trim(),
@@ -167,7 +167,7 @@ export const localTaskRepository = {
           updated_by, updated_at, version, is_deleted
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
       `, [
-        created.id, created.list_id, created.workspace_id, created.parent_task_id,
+        created.id, created.list_id || null, created.workspace_id, created.parent_task_id,
         created.title, created.description, created.status, created.priority,
         created.due_date, created.position, created.created_by, created.created_at,
         created.updated_by, created.updated_at, created.version, created.is_deleted
@@ -182,7 +182,7 @@ export const localTaskRepository = {
           client_timestamp: now,
           version: created.version,
           payload_json: JSON.stringify({
-            listId: created.list_id,
+            listId: created.list_id || null,
             workspaceId: created.workspace_id,
             parentTaskId: created.parent_task_id,
             title: created.title,

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useUrlParams } from '../../hooks/useUrlParams';
-import { localTaskRepository } from '../../db';
-import { X, CheckSquare, Plus, AlertCircle } from 'lucide-react';
+import { localTaskRepository, localListRepository, TaskList } from '../../db';
+import { X, CheckSquare, Plus, AlertCircle, Inbox } from 'lucide-react';
 
 interface Props {
   onTaskCreated?: () => void;
@@ -9,12 +9,14 @@ interface Props {
 
 export const NewTaskModal: React.FC<Props> = ({ onTaskCreated }) => {
   const { closeModal, getParam } = useUrlParams();
-  const listId = getParam('listId') || '';
+  const initialListId = getParam('listId') || '';
   const workspaceId = getParam('workspaceId') || '';
   const parentTaskId = getParam('parentTaskId');
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [selectedListId, setSelectedListId] = useState(initialListId);
+  const [availableLists, setAvailableLists] = useState<TaskList[]>([]);
   const [priority, setPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'>('MEDIUM');
   const [dueDate, setDueDate] = useState('');
   const [loading, setLoading] = useState(false);
@@ -22,14 +24,16 @@ export const NewTaskModal: React.FC<Props> = ({ onTaskCreated }) => {
 
   const isSubtask = !!parentTaskId;
 
+  useEffect(() => {
+    if (workspaceId && !isSubtask) {
+      localListRepository.getByWorkspace(workspaceId).then(setAvailableLists).catch(console.error);
+    }
+  }, [workspaceId, isSubtask]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
       setError('El título de la tarea es obligatorio.');
-      return;
-    }
-    if (!listId) {
-      setError('Debes especificar la lista contenedora.');
       return;
     }
 
@@ -37,7 +41,7 @@ export const NewTaskModal: React.FC<Props> = ({ onTaskCreated }) => {
       setLoading(true);
       setError(null);
       await localTaskRepository.save({
-        list_id: listId,
+        list_id: selectedListId || null,
         workspace_id: workspaceId,
         parent_task_id: parentTaskId || null,
         title: title.trim(),
@@ -109,6 +113,22 @@ export const NewTaskModal: React.FC<Props> = ({ onTaskCreated }) => {
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm focus:outline-none focus:border-blue-500 transition resize-none"
             />
           </div>
+
+          {!isSubtask && (
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">Lista de Destino (Opcional)</label>
+              <select
+                value={selectedListId}
+                onChange={(e) => setSelectedListId(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm focus:outline-none focus:border-blue-500 transition"
+              >
+                <option value="">(Sin lista / Bandeja de entrada)</option>
+                {availableLists.map((l) => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>

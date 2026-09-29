@@ -116,7 +116,7 @@ public class TaskRepository : ITaskRepository
         using var connection = _connectionFactory.CreateConnection();
         var sql = @"
             UPDATE tasks
-            SET title = @Title, description = @Description, status = @Status,
+            SET list_id = @ListId, title = @Title, description = @Description, status = @Status,
                 priority = @Priority, due_date = @DueDate, position = @Position,
                 updated_by = @UpdatedBy, updated_at = @UpdatedAt, version = version + 1
             WHERE id = @Id AND is_deleted = 0;";
@@ -124,6 +124,7 @@ public class TaskRepository : ITaskRepository
         return await connection.ExecuteAsync(sql, new
         {
             task.Id,
+            task.ListId,
             task.Title,
             task.Description,
             task.Status,

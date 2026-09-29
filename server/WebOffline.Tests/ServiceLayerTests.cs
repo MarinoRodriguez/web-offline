@@ -194,4 +194,51 @@ public class ServiceLayerTests : IDisposable
         Assert.NotEmpty(changelogs);
         Assert.Contains(changelogs, c => c.Action == "STATUS_CHANGE");
     }
+
+    [Fact]
+    public async Task CreateTaskAsync_WithoutList_Succeeds()
+    {
+        var userId = $"user-{Guid.NewGuid():N}";
+        var userEmail = "unassigned@example.com";
+        await _userRepo.CreateAsync(new User
+        {
+            Id = userId,
+            Email = userEmail,
+            PasswordHash = "hash",
+            FullName = "Unassigned User",
+            SystemRole = "user",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+
+        var createWs = await _workspaceService.CreateWorkspaceAsync(new CreateWorkspaceRequest
+        {
+            Name = "Workspace Without Lists",
+            Description = "Testing unassigned tasks"
+        }, userId, userEmail);
+        Assert.True(createWs.Success);
+        var wsId = createWs.Data!.Id;
+
+        // Create task without specifying ListId
+        var createTask = await _taskService.CreateTaskAsync(new CreateTaskRequest
+        {
+            WorkspaceId = wsId,
+            ListId = null,
+            Title = "Task in Inbox without List",
+            Priority = "URGENT"
+        }, userId, userEmail, isSystemAdmin: false);
+
+        Assert.True(createTask.Success);
+        Assert.NotNull(createTask.Data);
+        Assert.Null(createTask.Data.ListId);
+        Assert.Equal("Task in Inbox without List", createTask.Data.Title);
+        Assert.Equal(wsId, createTask.Data.WorkspaceId);
+
+        // Verify task can be retrieved by workspace
+        var getTasks = await _taskService.GetTasksByWorkspaceAsync(wsId, userId, isSystemAdmin: false);
+        Assert.True(getTasks.Success);
+        Assert.Single(getTasks.Data!);
+        Assert.Null(getTasks.Data!.First().ListId);
+    }
 }
+

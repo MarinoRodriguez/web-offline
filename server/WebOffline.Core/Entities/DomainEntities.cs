@@ -73,7 +73,7 @@ public class TaskList
 public class TaskItem
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string ListId { get; set; } = string.Empty;
+    public string? ListId { get; set; }
     public string WorkspaceId { get; set; } = string.Empty;
     public string? ParentTaskId { get; set; }
     public string Title { get; set; } = string.Empty;
