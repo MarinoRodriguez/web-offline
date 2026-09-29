@@ -24,20 +24,48 @@ async function initializeDatabase(): Promise<void> {
       locateFile: (file: string) => `/${file}`,
     });
 
-    if ('opfs' in sqlite3) {
+    // Strategy 1: OPFS SAHPool (Modern Origin-Private FileSystem via SyncAccessHandle, highly reliable in Workers)
+    if (typeof sqlite3.installOpfsSAHPoolVfs === 'function') {
+      try {
+        const poolUtil = await sqlite3.installOpfsSAHPoolVfs({
+          name: 'opfs-sahpool',
+          directory: '.task_manager_pool',
+        });
+        db = new poolUtil.OpfsSAHPoolDb('/task_manager_local.db');
+        storageType = 'OPFS (Persistent)';
+        console.info('[SQLite Worker] Successfully initialized persistent OPFS SAHPool database (/task_manager_local.db)');
+      } catch (poolErr: any) {
+        console.warn('[SQLite Worker] OPFS SAHPool failed, trying OpfsDb:', poolErr);
+      }
+    }
+
+    // Strategy 2: Standard OpfsDb (OPFS Async Proxy VFS)
+    if (!db && sqlite3.oo1 && typeof sqlite3.oo1.OpfsDb === 'function') {
       try {
         db = new sqlite3.oo1.OpfsDb('/task_manager_local.db');
         storageType = 'OPFS (Persistent)';
-        console.info('[SQLite Worker] Successfully initialized persistent database in OPFS (/task_manager_local.db)');
+        console.info('[SQLite Worker] Successfully initialized persistent OpfsDb database (/task_manager_local.db)');
       } catch (opfsErr: any) {
-        console.error('[SQLite Worker] OPFS instantiation failed:', opfsErr);
-        db = new sqlite3.oo1.DB('/task_manager_local.db', 'ct');
-        storageType = 'Virtual (Fallback)';
+        console.warn('[SQLite Worker] OpfsDb instantiation failed:', opfsErr);
       }
-    } else {
-      console.warn('[SQLite Worker] OPFS not supported in this browser context (requires COOP/COEP isolation). Using Virtual DB.');
+    }
+
+    // Strategy 3: Check if 'opfs' VFS is registered in SQLite C-API
+    if (!db && sqlite3.capi && typeof sqlite3.capi.sqlite3_vfs_find === 'function' && sqlite3.capi.sqlite3_vfs_find('opfs')) {
+      try {
+        db = new sqlite3.oo1.DB('/task_manager_local.db', 'c', 'opfs');
+        storageType = 'OPFS (Persistent)';
+        console.info('[SQLite Worker] Successfully opened database with "opfs" VFS (/task_manager_local.db)');
+      } catch (vfsErr: any) {
+        console.warn('[SQLite Worker] Failed opening with "opfs" VFS:', vfsErr);
+      }
+    }
+
+    // Strategy 4: Fallback to in-memory transient database only if all OPFS methods fail
+    if (!db) {
+      console.warn('[SQLite Worker] OPFS is not supported in this browser context. Falling back to in-memory Virtual DB.');
       db = new sqlite3.oo1.DB('/task_manager_local.db', 'ct');
-      storageType = 'Virtual (No OPFS)';
+      storageType = 'Virtual (Fallback)';
     }
 
     // Execute Initial Schema
