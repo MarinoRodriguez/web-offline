@@ -193,6 +193,8 @@ app.UseMiddleware<SessionValidationMiddleware>();
 app.UseMiddleware<AuditLoggingMiddleware>(); // Logs requests/responses after authentication populates claims
 app.UseAuthorization();
 
+app.MapGet("/api/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow })).AllowAnonymous();
+
 app.MapControllers();
 
 app.Run();

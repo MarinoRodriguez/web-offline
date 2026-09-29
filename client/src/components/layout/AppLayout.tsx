@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useSync } from '../../context/SyncContext';
 import { useUrlParams } from '../../hooks/useUrlParams';
 import { sqliteClient } from '../../db/sqliteClient';
+import { connectivity, ConnectivityState } from '../../services/connectivity';
 import { ModalRoot } from '../modals/ModalRoot';
 import { 
   Database, Wifi, WifiOff, Briefcase, LogOut, 
@@ -18,20 +19,19 @@ export const AppLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+  const [connectivityState, setConnectivityState] = useState<ConnectivityState>(connectivity.getState());
   const [storageType, setStorageType] = useState<string>('Detecting...');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    const unsubscribe = connectivity.subscribe((state) => {
+      setConnectivityState(state);
+    });
 
     const handleDataSynced = () => {
       handleTriggerRefresh();
     };
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
     window.addEventListener('app:data-synced', handleDataSynced);
 
     async function checkDb() {
@@ -46,8 +46,7 @@ export const AppLayout: React.FC = () => {
     checkDb();
 
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      unsubscribe();
       window.removeEventListener('app:data-synced', handleDataSynced);
     };
   }, []);
@@ -127,13 +126,41 @@ export const AppLayout: React.FC = () => {
           </div>
 
           {/* Online/Offline status */}
-          <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border ${
-            isOnline 
-              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-              : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-          }`}>
-            {isOnline ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
-            <span>{isOnline ? 'Online' : 'Offline'}</span>
+          <div 
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              connectivityState.status === 'online'
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                : connectivityState.status === 'server_unreachable'
+                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+            }`}
+            title={
+              connectivityState.status === 'online'
+                ? 'Conexión activa con el backend .NET'
+                : connectivityState.status === 'server_unreachable'
+                ? 'Servidor backend no responde (502 Bad Gateway / Desconectado). Modo offline local activo.'
+                : 'Dispositivo sin conexión a internet ni red local.'
+            }
+          >
+            {connectivityState.status === 'online' ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <Wifi className="w-3.5 h-3.5" />
+                <span>Online</span>
+              </>
+            ) : connectivityState.status === 'server_unreachable' ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-amber-400" />
+                <WifiOff className="w-3.5 h-3.5" />
+                <span>Servidor Offline</span>
+              </>
+            ) : (
+              <>
+                <span className="w-2 h-2 rounded-full bg-rose-400" />
+                <WifiOff className="w-3.5 h-3.5" />
+                <span>Sin red</span>
+              </>
+            )}
           </div>
 
           {/* Pending Outbox Count */}
@@ -151,7 +178,7 @@ export const AppLayout: React.FC = () => {
           <button
             type="button"
             onClick={handleManualSync}
-            disabled={isSyncing || !isOnline}
+            disabled={isSyncing}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600/10 hover:bg-blue-600/20 border border-blue-500/30 text-blue-400 text-xs font-medium disabled:opacity-50 transition shadow-sm"
             title={lastSyncedAt ? `Última sincronización: ${new Date(lastSyncedAt).toLocaleTimeString()}` : 'Sin sincronizar aún'}
           >

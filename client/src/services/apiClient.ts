@@ -1,4 +1,5 @@
 import { authStorage } from './authStorage';
+import { connectivity } from './connectivity';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -25,14 +26,28 @@ export async function apiRequest<T = any>(
 
   const url = endpoint.startsWith('http') ? endpoint : `/api${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+    });
+  } catch (netErr: any) {
+    connectivity.reportApiFailure(0, true);
+    throw new Error('Sin conexión con el servidor backend (Red no disponible / Conexión rechazada).');
+  }
+
+  // Handle gateway/proxy errors (e.g. Vite proxy returning 502 Bad Gateway when backend is down)
+  if (response.status === 502 || response.status === 503 || response.status === 504) {
+    connectivity.reportApiFailure(response.status, false);
+    throw new Error(`El servidor backend no está disponible (${response.status} Bad Gateway / Fuera de línea).`);
+  }
 
   const data = await response.json().catch(() => ({
     success: false,
-    message: 'Error al interpretar respuesta JSON del servidor.',
+    message: response.ok 
+      ? 'Respuesta vacía del servidor.' 
+      : `Error HTTP ${response.status} del servidor.`,
     statusCode: response.status,
   }));
 
@@ -40,5 +55,6 @@ export async function apiRequest<T = any>(
     throw new Error(data.message || data.errors?.[0] || `Error HTTP ${response.status}`);
   }
 
+  connectivity.reportApiSuccess();
   return data;
 }

@@ -1,5 +1,6 @@
 import { apiRequest } from './apiClient';
 import { authStorage } from './authStorage';
+import { connectivity } from './connectivity';
 import { 
   outboxRepository, 
   metaRepository, 
@@ -48,8 +49,19 @@ class SyncEngine {
       return { success: false, pushedCount: 0, pulledCount: 0, rejections: [], error: 'Sincronización ya en curso' };
     }
 
-    if (!navigator.onLine) {
-      return { success: false, pushedCount: 0, pulledCount: 0, rejections: [], error: 'Dispositivo sin conexión a internet.' };
+    if (!connectivity.isOnline()) {
+      // Probe if server is reachable right now (in case it just came back up)
+      const isReachable = await connectivity.checkHealth();
+      if (!isReachable) {
+        const state = connectivity.getState();
+        return { 
+          success: false, 
+          pushedCount: 0, 
+          pulledCount: 0, 
+          rejections: [], 
+          error: `Modo offline activo: ${state.statusText}` 
+        };
+      }
     }
 
     if (!authStorage.isAuthenticated()) {
@@ -229,18 +241,24 @@ class SyncEngine {
     }
   }
 
+  private handleConnectivityRestored = () => {
+    console.info('[SyncEngine] Connectivity restored, executing background sync...');
+    setTimeout(() => {
+      if (connectivity.isOnline() && authStorage.isAuthenticated()) {
+        this.syncNow();
+      }
+    }, 1200);
+  };
+
   public startAutoSync(intervalSeconds = 30): void {
     if (this.autoSyncInterval) return;
 
-    // Listen to network regain event
-    window.addEventListener('online', () => {
-      console.info('[SyncEngine] Connectivity restored, executing background sync...');
-      setTimeout(() => this.syncNow(), 1500);
-    });
+    window.addEventListener('online', this.handleConnectivityRestored);
+    window.addEventListener('app:server-restored', this.handleConnectivityRestored);
 
     // Periodic sync
     this.autoSyncInterval = setInterval(() => {
-      if (navigator.onLine && authStorage.isAuthenticated()) {
+      if (connectivity.isOnline() && authStorage.isAuthenticated()) {
         this.syncNow();
       }
     }, intervalSeconds * 1000);
@@ -253,6 +271,8 @@ class SyncEngine {
       clearInterval(this.autoSyncInterval);
       this.autoSyncInterval = null;
     }
+    window.removeEventListener('online', this.handleConnectivityRestored);
+    window.removeEventListener('app:server-restored', this.handleConnectivityRestored);
   }
 
   public getIsSyncing(): boolean {
