@@ -2,16 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSync } from '../../context/SyncContext';
+import { useUrlParams } from '../../hooks/useUrlParams';
 import { sqliteClient } from '../../db/sqliteClient';
 import { ModalRoot } from '../modals/ModalRoot';
 import { 
   Database, Wifi, WifiOff, Briefcase, LogOut, 
-  ShieldCheck, RefreshCw, CheckCircle2, AlertCircle 
+  ShieldCheck, RefreshCw, CheckCircle2, AlertCircle,
+  Key, UserPlus
 } from 'lucide-react';
 
 export const AppLayout: React.FC = () => {
   const { user, logout, isAdmin } = useAuth();
   const { isSyncing, syncNow, lastSyncedAt, pendingOutboxCount, syncError } = useSync();
+  const { openModal } = useUrlParams();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -170,6 +173,26 @@ export const AppLayout: React.FC = () => {
                 </div>
                 <div className="text-[10px] text-slate-400 font-mono">{user.email}</div>
               </div>
+
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => openModal('new-user')}
+                  className="p-2 rounded-lg text-slate-400 hover:text-purple-400 hover:bg-slate-800/80 transition"
+                  title="Registrar nuevo usuario"
+                >
+                  <UserPlus className="w-4 h-4" />
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => openModal('session-manager')}
+                className="p-2 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-slate-800/80 transition"
+                title="Gestionar sesiones activas"
+              >
+                <Key className="w-4 h-4" />
+              </button>
 
               <button
                 onClick={handleLogout}

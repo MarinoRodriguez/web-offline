@@ -5,6 +5,8 @@ import { NewListModal } from './NewListModal';
 import { NewTaskModal } from './NewTaskModal';
 import { TaskDetailModal } from './TaskDetailModal';
 import { CsvImportModal } from './CsvImportModal';
+import { SessionManagerModal } from './SessionManagerModal';
+import { NewUserModal } from './NewUserModal';
 
 interface Props {
   onRefreshData?: () => void;
@@ -26,6 +28,10 @@ export const ModalRoot: React.FC<Props> = ({ onRefreshData }) => {
       return <TaskDetailModal onTaskUpdated={onRefreshData} />;
     case 'import-csv':
       return <CsvImportModal onImportCompleted={onRefreshData} />;
+    case 'session-manager':
+      return <SessionManagerModal />;
+    case 'new-user':
+      return <NewUserModal onUserCreated={onRefreshData} />;
     default:
       return null;
   }
